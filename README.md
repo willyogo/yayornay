@@ -32,3 +32,14 @@ https://docs.nouns.build/developers/overview/
 
 Zora docs (for displaying creator profiles and creator coin details):
 https://docs.zora.co/coins/sdk/queries/profile
+
+## Documentation
+
+Comprehensive technical documentation is available in the [`docs/`](./docs/) directory:
+
+- **[Architecture](./docs/architecture/)** - System architecture and design decisions
+- **[Guides](./docs/guides/)** - Development setup and workflows
+- **[API Reference](./docs/api/)** - External API integrations
+- **[Database](./docs/database/)** - Schema and migrations
+
+Start with the [Documentation Index](./docs/README.md) for an overview.
