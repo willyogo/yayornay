@@ -1,34 +1,30 @@
 {
   "accountAssociation": {
-    "header": "",
-    "payload": "",
-    "signature": ""
+    "header": "eyJmaWQiOjAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIn0",
+    "payload": "eyJkb21haW4iOiJ5YXlvcm5heS52ZXJjZWwuYXBwIn0",
+    "signature": "MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA"
   },
   "baseBuilder": {
-    "ownerAddress": "0x"
+    "ownerAddress": "0x9e77Bee7Bebe3c2B8435Cdb8AE5E0F4c497E236D"
   },
   "miniapp": {
     "version": "1",
-    "name": "YayOrNay - DAO Swipe",
-    "homeUrl": "https://yayornay.vercel.app/",
-    "iconUrl": "https://yayornay.vercel.app//icon.png",
-    "splashImageUrl": "https://yayornay.vercel.app//splash.png",
+    "name": "YayOrNay",
+    "homeUrl": "https://yayornay.vercel.app",
+    "iconUrl": "https://yayornay.vercel.app/icon.png",
+    "splashImageUrl": "https://yayornay.vercel.app/splash.png",
     "splashBackgroundColor": "#f9fafb",
-    "webhookUrl": "https://yayornay.vercel.app//api/webhook",
     "subtitle": "Swipe to vote on DAO proposals",
     "description": "A fast, fun way to vote on DAO proposals. Swipe right for Yay, left for Nay. Discover and engage with governance proposals through an intuitive Tinder-style interface.",
     "screenshotUrls": [
-      "https://yayornay.vercel.app//screenshot1.png",
-      "https://yayornay.vercel.app//screenshot2.png",
-      "https://yayornay.vercel.app//screenshot3.png"
+      "https://yayornay.vercel.app/screenshot1.png"
     ],
     "primaryCategory": "social",
-    "tags": ["dao", "governance", "voting", "web3", "proposals"],
-    "heroImageUrl": "https://yayornay.vercel.app//hero.png",
+    "tags": ["dao", "governance", "voting"],
+    "heroImageUrl": "https://yayornay.vercel.app/hero.png",
     "tagline": "Swipe to govern",
-    "ogTitle": "YayOrNay - DAO Swipe",
-    "ogDescription": "Vote on DAO proposals with a swipe. Make governance fun and engaging.",
-    "ogImageUrl": "https://yayornay.vercel.app//og-image.png",
-    "noindex": true
+    "ogTitle": "YayOrNay",
+    "ogDescription": "Vote on DAO proposals with a swipe",
+    "ogImageUrl": "https://yayornay.vercel.app/og-image.png"
   }
 }
