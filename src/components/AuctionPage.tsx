@@ -28,14 +28,15 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
   const { connect, connectors } = useConnect();
   const {
     auction,
-    countdown,
-    countdownLabel,
     currentBid,
     currentBidRaw,
     currentBidder,
     nounId,
     settled,
     reservePrice,
+    reservePriceWei,
+    minIncrementPct,
+    duration,
     minRequiredWei,
     status,
     isLoading,
@@ -44,6 +45,7 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
 
   const [bidModalOpen, setBidModalOpen] = useState(false);
   const [bidSubmitting, setBidSubmitting] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
@@ -68,8 +70,6 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
     // If viewing current auction, use current auction data
     if (auction && viewNounId === Number(auction.nounId)) {
       setDisplayAuction(auction);
-      const remaining = Math.max(0, Number(auction.endTime) * 1000 - Date.now());
-      setDisplayCountdown(remaining);
       return;
     }
 
@@ -86,15 +86,15 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
 
         if (settlementData && Array.isArray(settlementData) && settlementData.length > 0) {
           const settlement = settlementData[0] as any;
+          const settlementTime = BigInt(settlement.blockTimestamp);
           setDisplayAuction({
             nounId: BigInt(viewNounId),
             amount: BigInt(settlement.amount),
-            startTime: BigInt(settlement.blockTimestamp),
-            endTime: BigInt(settlement.blockTimestamp),
+            startTime: settlementTime,
+            endTime: settlementTime,
             bidder: settlement.winner,
             settled: true,
           });
-          setDisplayCountdown(0);
         } else {
           // Fallback: create a placeholder auction
           setDisplayAuction({
@@ -105,10 +105,8 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
             bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
             settled: true,
           });
-          setDisplayCountdown(0);
         }
-      } catch (error) {
-        console.warn('Failed to load past auction', error);
+      } catch {
         // Fallback: create a placeholder auction
         setDisplayAuction({
           nounId: BigInt(viewNounId),
@@ -118,20 +116,25 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
           bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
           settled: true,
         });
-        setDisplayCountdown(0);
       }
     })();
   }, [viewNounId, auction, publicClient]);
 
   // Update countdown for display auction
   useEffect(() => {
-    if (!displayAuction) return;
+    if (!displayAuction || displayAuction.endTime === 0n) {
+      setDisplayCountdown(0);
+      return;
+    }
+    
     const updateCountdown = () => {
-      const remaining = Math.max(0, Number(displayAuction.endTime) * 1000 - Date.now());
-      setDisplayCountdown(remaining);
+      const endTimeMs = Number(displayAuction.endTime) * 1000;
+      const remaining = endTimeMs - Date.now();
+      setDisplayCountdown(Math.max(0, remaining));
     };
+    
     updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
+    const interval = setInterval(updateCountdown, 1_000);
     return () => clearInterval(interval);
   }, [displayAuction]);
 
@@ -218,9 +221,8 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
           });
           setActionMessage('Transaction submitted. Waiting for confirmation...');
           hash = await writeContractAsync(simulation.request);
-        } catch (simErr) {
+        } catch {
           // Fallback to direct write if simulation fails
-          console.warn('Simulation failed; attempting direct write', simErr);
           setActionMessage('Submitting transaction...');
           hash = await writeContractAsync({
             address: CONTRACTS.AUCTION_HOUSE,
@@ -247,7 +249,6 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
           setActionError('Bid transaction failed');
         }
       } catch (error) {
-        console.error('Bid failed', error);
         const message =
           error instanceof Error ? error.message : 'Failed to place bid';
         setActionMessage(null);
@@ -259,6 +260,92 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
     },
     [auction, isConnected, address, writeContractAsync, refetch]
   );
+
+  const attemptSettle = useCallback(
+    async (fnName: 'settleAuction' | 'settleCurrentAndCreateNewAuction') => {
+      if (!auction) return null;
+      try {
+        const simulation = await simulateContract(config, {
+          address: CONTRACTS.AUCTION_HOUSE,
+          abi: AUCTION_HOUSE_ABI,
+          functionName: fnName,
+          args: [],
+          account: address!,
+        });
+        const hash = await writeContractAsync(simulation.request);
+        setTxHash(hash);
+        const receipt = await waitForTransactionReceipt(config, { hash });
+        return receipt.status;
+      } catch (error: any) {
+        // If simulation fails, the function likely can't be called
+        // This helps us determine which settle function to use
+        throw error;
+      }
+    },
+    [auction, address, writeContractAsync]
+  );
+
+  const handleSettle = useCallback(async () => {
+    if (!auction) return;
+    if (!isConnected) {
+      setActionError('Connect a wallet to settle the auction.');
+      return;
+    }
+
+    // Double-check that auction is actually ended before attempting to settle
+    const auctionStatus = getAuctionStatus(auction);
+    if (auctionStatus !== 'ended') {
+      setActionError('Auction has not ended yet. Cannot settle.');
+      return;
+    }
+
+    if (auction.settled) {
+      setActionError('Auction is already settled.');
+      return;
+    }
+
+    try {
+      setIsSettling(true);
+      setActionError(null);
+      setActionMessage('Submitting settle transaction...');
+      
+      // Try settleAuction first (for ended auctions)
+      const attempts: ('settleAuction' | 'settleCurrentAndCreateNewAuction')[] = [
+        'settleAuction',
+        'settleCurrentAndCreateNewAuction',
+      ];
+      let success = false;
+      let lastError: unknown = null;
+      for (const fn of attempts) {
+        try {
+          const status = await attemptSettle(fn);
+          if (status === 'success') {
+            success = true;
+            break;
+          }
+        } catch (error: any) {
+          lastError = error;
+        }
+      }
+      if (success) {
+        setActionMessage('Auction settled!');
+        await refetch();
+      } else {
+        const errorMsg = lastError instanceof Error 
+          ? lastError.message 
+          : 'Failed to settle auction. The auction may not be ready to settle yet.';
+        throw new Error(errorMsg);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to settle auction';
+      setActionMessage(null);
+      setActionError(message);
+    } finally {
+      setIsSettling(false);
+      setTimeout(() => setActionMessage(null), 6000);
+    }
+  }, [auction, attemptSettle, isConnected, refetch]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
@@ -275,6 +362,8 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
           auction={activeAuction}
           countdownMs={displayCountdown}
           onOpenBid={handleOpenBid}
+          onSettle={handleSettle}
+          isSettling={isSettling}
           isConnected={isConnected}
           onConnectWallet={handleConnectWallet}
           dateLabel={dateLabel}
@@ -287,8 +376,8 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
           canGoNext={canGoNext}
         />
 
-        {/* Info Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mt-8">
+              {/* Info Cards */}
+              <div className="grid md:grid-cols-3 gap-6 mt-8">
           <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50">
             <div className="text-2xl mb-2">🏆</div>
             <h3 className="font-semibold text-white mb-2">Own an NFT</h3>

@@ -1,16 +1,18 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Info, Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
 import { parseEther } from 'viem';
 import NounImage from './NounImage';
-import { formatCountdown, formatEth, getAuctionStatus } from '../utils/auction';
+import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
 import type { Auction } from '../config/contracts';
 
 interface AuctionHeroProps {
   auction?: Auction;
   countdownMs: number;
   onOpenBid: () => void;
+  onSettle?: () => void;
+  isSettling?: boolean;
   isConnected: boolean;
   onConnectWallet?: () => void;
   dateLabel?: string;
@@ -29,6 +31,8 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   auction,
   countdownMs,
   onOpenBid,
+  onSettle,
+  isSettling = false,
   isConnected,
   onConnectWallet,
   dateLabel,
@@ -49,7 +53,7 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   const countdownLabel = formatCountdown(countdownMs);
   const etherLabel = auction ? formatEth(auction.amount, 3) : 'Loading';
   const isEnded = status === 'ended';
-  const buttonDisabled = isEnded ? !auction || auction.settled : status === 'pending' || !isConnected;
+  const buttonDisabled = isEnded ? !auction || auction.settled || isSettling : status === 'pending' || !isConnected;
 
   const placeholderEth = useMemo(() => {
     if (!minRequiredWei) return '0.10';
@@ -221,10 +225,11 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
               {status === 'ended' && auction && !auction.settled ? (
                 <button
                   type="button"
-                  disabled
+                  onClick={onSettle}
+                  disabled={buttonDisabled}
                   className="inline-flex h-12 items-center justify-center rounded-[12px] bg-black px-6 text-base font-semibold text-white transition hover:scale-[1.01] hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/30"
                 >
-                  Auction ended
+                  {isSettling ? 'Settling...' : 'Settle auction'}
                 </button>
               ) : (
                 <>

@@ -20,9 +20,15 @@ export const shortAddress = (address?: string) => {
 
 export const getAuctionStatus = (auction?: Auction): 'loading' | 'pending' | 'active' | 'ended' => {
   if (!auction) return 'loading';
+  // If already settled, it's ended
+  if (auction.settled) return 'ended';
   const now = Date.now();
-  if (Number(auction.startTime) * 1000 > now) return 'pending';
-  if (Number(auction.endTime) * 1000 <= now) return 'ended';
+  const startTimeMs = Number(auction.startTime) * 1000;
+  const endTimeMs = Number(auction.endTime) * 1000;
+  // Check if startTime is valid (not 0)
+  if (auction.startTime === 0n || startTimeMs === 0) return 'loading';
+  if (startTimeMs > now) return 'pending';
+  if (endTimeMs <= now) return 'ended';
   return 'active';
 };
 

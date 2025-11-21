@@ -25,7 +25,41 @@ export function useAuction() {
     functionName: 'minBidIncrementPercentage',
   });
 
-  const auction = auctionData as Auction | undefined;
+  const { data: duration } = useReadContract({
+    address: CONTRACTS.AUCTION_HOUSE,
+    abi: AUCTION_HOUSE_ABI,
+    functionName: 'duration',
+  });
+
+  // Parse auction data: contract's "endTime" field actually contains the startTime
+  // Calculate actual endTime as startTime + duration
+  const auction: Auction | undefined = useMemo(() => {
+    if (!auctionData) return undefined;
+    
+    try {
+      const obj = auctionData as any;
+      const contractEndTime = BigInt(obj.endTime || 0);
+      
+      // Contract's "endTime" field contains the actual startTime
+      const actualStartTime = contractEndTime;
+      
+      // Calculate actual endTime as startTime + duration
+      const actualEndTime = duration && duration > 0n
+        ? contractEndTime + duration
+        : contractEndTime; // Fallback if no duration
+      
+      return {
+        nounId: BigInt(obj.nounId || 0),
+        amount: BigInt(obj.amount || 0),
+        startTime: actualStartTime,
+        endTime: actualEndTime,
+        bidder: obj.bidder as `0x${string}`,
+        settled: Boolean(obj.settled),
+      };
+    } catch {
+      return auctionData as Auction;
+    }
+  }, [auctionData, duration]);
   const [countdown, setCountdown] = useState(0);
 
   // Update countdown every second
@@ -74,6 +108,7 @@ export function useAuction() {
     reservePrice: reservePrice ? formatEth(reservePrice) : '0',
     reservePriceWei: reservePrice ?? 0n,
     minIncrementPct: typeof minIncrementPct === 'number' ? minIncrementPct : 5,
+    duration: duration ?? 0n,
     minRequiredWei,
     status,
     isLoading,

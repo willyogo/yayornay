@@ -60,6 +60,20 @@ export const AUCTION_HOUSE_ABI = [
   },
   {
     type: 'function',
+    stateMutability: 'nonpayable',
+    name: 'settleAuction',
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    stateMutability: 'nonpayable',
+    name: 'settleCurrentAndCreateNewAuction',
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: 'function',
     stateMutability: 'view',
     name: 'getSettlements',
     inputs: [
