@@ -1,6 +1,7 @@
-import { useState, createContext, useContext } from 'react';
+import { useState, createContext, useContext, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { TestTube } from 'lucide-react';
+import { sdk } from '@farcaster/miniapp-sdk';
 import { LandingPage } from './components/LandingPage';
 import { SwipeStack } from './components/SwipeStack';
 import { CreatorFeedModal } from './components/CreatorFeedModal';
@@ -24,6 +25,11 @@ function App() {
   const { proposals, loading } = useProposals(testMode);
   const { submitVote } = useVoting();
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
+
+  // Signal to mini app that the app is ready to display
+  useEffect(() => {
+    sdk.actions.ready();
+  }, []);
 
   if (!isConnected) {
     return (

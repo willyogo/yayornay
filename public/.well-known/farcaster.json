@@ -1,0 +1,34 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "baseBuilder": {
+    "ownerAddress": "0x"
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "YayOrNay - DAO Swipe",
+    "homeUrl": "https://yayornay.vercel.app/",
+    "iconUrl": "https://yayornay.vercel.app//icon.png",
+    "splashImageUrl": "https://yayornay.vercel.app//splash.png",
+    "splashBackgroundColor": "#f9fafb",
+    "webhookUrl": "https://yayornay.vercel.app//api/webhook",
+    "subtitle": "Swipe to vote on DAO proposals",
+    "description": "A fast, fun way to vote on DAO proposals. Swipe right for Yay, left for Nay. Discover and engage with governance proposals through an intuitive Tinder-style interface.",
+    "screenshotUrls": [
+      "https://yayornay.vercel.app//screenshot1.png",
+      "https://yayornay.vercel.app//screenshot2.png",
+      "https://yayornay.vercel.app//screenshot3.png"
+    ],
+    "primaryCategory": "social",
+    "tags": ["dao", "governance", "voting", "web3", "proposals"],
+    "heroImageUrl": "https://yayornay.vercel.app//hero.png",
+    "tagline": "Swipe to govern",
+    "ogTitle": "YayOrNay - DAO Swipe",
+    "ogDescription": "Vote on DAO proposals with a swipe. Make governance fun and engaging.",
+    "ogImageUrl": "https://yayornay.vercel.app//og-image.png",
+    "noindex": true
+  }
+}
