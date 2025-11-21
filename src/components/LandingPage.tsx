@@ -1,8 +1,12 @@
-import { Heart, TrendingUp, Users, TestTube } from 'lucide-react';
+import { Heart, TrendingUp, Users, TestTube, Gavel } from 'lucide-react';
 import { WalletConnect } from './WalletConnect';
 import { useTestMode } from '../App';
 
-export function LandingPage() {
+interface LandingPageProps {
+  onBecomeVoter: () => void;
+}
+
+export function LandingPage({ onBecomeVoter }: LandingPageProps) {
   const { testMode, setTestMode } = useTestMode();
 
   return (
@@ -56,8 +60,15 @@ export function LandingPage() {
           </div>
         </div>
 
-        <div className="pt-4">
+        <div className="pt-4 space-y-4">
           <WalletConnect />
+          <button
+            onClick={onBecomeVoter}
+            className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-all duration-200 font-semibold text-lg"
+          >
+            <Gavel className="w-5 h-5" />
+            Become a Voter
+          </button>
         </div>
 
         <p className="text-sm text-gray-600">

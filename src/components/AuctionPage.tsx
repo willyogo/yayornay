@@ -1,0 +1,356 @@
+'use client';
+
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
+import { useAccount, useWriteContract, useConnect } from 'wagmi';
+import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
+import { config } from '../lib/wagmi';
+import { createPublicClient, http } from 'viem';
+import { baseSepolia } from 'viem/chains';
+import { parseEther, formatEther } from 'viem';
+import { useAuction } from '../hooks/useAuction';
+import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
+import AuctionHero from './AuctionHero';
+import BidModal from './BidModal';
+import { getAuctionStatus } from '../utils/auction';
+
+interface AuctionPageProps {
+  onBack: () => void;
+}
+
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+});
+
+export function AuctionPage({ onBack }: AuctionPageProps) {
+  const { isConnected, address, chainId } = useAccount();
+  const { connect, connectors } = useConnect();
+  const {
+    auction,
+    countdown,
+    countdownLabel,
+    currentBid,
+    currentBidRaw,
+    currentBidder,
+    nounId,
+    settled,
+    reservePrice,
+    minRequiredWei,
+    status,
+    isLoading,
+    refetch,
+  } = useAuction();
+
+  const [bidModalOpen, setBidModalOpen] = useState(false);
+  const [bidSubmitting, setBidSubmitting] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+  const [viewNounId, setViewNounId] = useState<number | null>(null);
+  const [displayAuction, setDisplayAuction] = useState<Auction | undefined>();
+  const [displayCountdown, setDisplayCountdown] = useState(0);
+
+  const { writeContractAsync } = useWriteContract();
+
+  // Update viewNounId when current auction changes
+  useEffect(() => {
+    if (!auction) return;
+    // Do not override if user is viewing a past auction
+    setViewNounId((prev) => (prev == null || prev >= Number(auction.nounId) ? Number(auction.nounId) : prev));
+    setDisplayAuction(auction);
+  }, [auction]);
+
+  // Fetch past auction data when viewNounId changes
+  useEffect(() => {
+    if (viewNounId == null || !publicClient) return;
+    
+    // If viewing current auction, use current auction data
+    if (auction && viewNounId === Number(auction.nounId)) {
+      setDisplayAuction(auction);
+      const remaining = Math.max(0, Number(auction.endTime) * 1000 - Date.now());
+      setDisplayCountdown(remaining);
+      return;
+    }
+
+    // Try to fetch past auction from settlements
+    (async () => {
+      try {
+        // Try to get settlement data for this nounId
+        const settlementData = await publicClient.readContract({
+          address: CONTRACTS.AUCTION_HOUSE,
+          abi: AUCTION_HOUSE_ABI,
+          functionName: 'getSettlements',
+          args: [BigInt(viewNounId), BigInt(viewNounId), false],
+        });
+
+        if (settlementData && Array.isArray(settlementData) && settlementData.length > 0) {
+          const settlement = settlementData[0] as any;
+          setDisplayAuction({
+            nounId: BigInt(viewNounId),
+            amount: BigInt(settlement.amount),
+            startTime: BigInt(settlement.blockTimestamp),
+            endTime: BigInt(settlement.blockTimestamp),
+            bidder: settlement.winner,
+            settled: true,
+          });
+          setDisplayCountdown(0);
+        } else {
+          // Fallback: create a placeholder auction
+          setDisplayAuction({
+            nounId: BigInt(viewNounId),
+            amount: 0n,
+            startTime: 0n,
+            endTime: 0n,
+            bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+            settled: true,
+          });
+          setDisplayCountdown(0);
+        }
+      } catch (error) {
+        console.warn('Failed to load past auction', error);
+        // Fallback: create a placeholder auction
+        setDisplayAuction({
+          nounId: BigInt(viewNounId),
+          amount: 0n,
+          startTime: 0n,
+          endTime: 0n,
+          bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          settled: true,
+        });
+        setDisplayCountdown(0);
+      }
+    })();
+  }, [viewNounId, auction, publicClient]);
+
+  // Update countdown for display auction
+  useEffect(() => {
+    if (!displayAuction) return;
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Number(displayAuction.endTime) * 1000 - Date.now());
+      setDisplayCountdown(remaining);
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [displayAuction]);
+
+  const handleConnectWallet = useCallback(() => {
+    if (connectors && connectors.length > 0) {
+      connect({ connector: connectors[0] });
+    }
+  }, [connect, connectors]);
+
+  const activeAuction = displayAuction ?? auction;
+
+  const handlePrev = useCallback(() => {
+    if (viewNounId == null) return;
+    setViewNounId(Math.max(0, viewNounId - 1));
+  }, [viewNounId]);
+
+  const handleNext = useCallback(() => {
+    if (viewNounId == null || !auction) return;
+    if (viewNounId >= Number(auction.nounId)) return;
+    setViewNounId(viewNounId + 1);
+  }, [viewNounId, auction]);
+
+  const canGoNext = auction ? (viewNounId ?? 0) < Number(auction.nounId) : false;
+  const isCurrentView = viewNounId === (auction ? Number(auction.nounId) : null);
+
+  const dateLabel = useMemo(() => {
+    if (!activeAuction || !activeAuction.startTime || activeAuction.startTime === 0n) {
+      return undefined;
+    }
+    const timestamp = Number(activeAuction.startTime) * 1000;
+    if (isNaN(timestamp) || timestamp <= 0) {
+      return undefined;
+    }
+    try {
+      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
+        new Date(timestamp)
+      );
+    } catch {
+      return undefined;
+    }
+  }, [activeAuction]);
+
+  const backgroundHex = '#f0f0ff'; // Default background color
+  const isAuctionActive = status === 'active';
+  const canBid = isConnected && isAuctionActive && !settled && auction !== undefined && isCurrentView;
+
+  const handleOpenBid = useCallback(() => {
+    setActionMessage(null);
+    setActionError(null);
+    if (!isConnected) {
+      setActionError('Please connect your wallet to bid.');
+      return;
+    }
+    if (!canBid) {
+      setActionError('Auction is not currently accepting bids.');
+      return;
+    }
+    setBidModalOpen(true);
+  }, [isConnected, canBid]);
+
+  const handleBidSubmit = useCallback(
+    async (valueWei: bigint) => {
+      if (!auction) return;
+      if (!isConnected) {
+        setActionError('Connect a wallet to place a bid.');
+        return;
+      }
+
+      try {
+        setBidSubmitting(true);
+        setActionError(null);
+        setActionMessage('Waiting for wallet signature...');
+
+        // Try to simulate first
+        let hash: `0x${string}` | undefined;
+        try {
+          const simulation = await simulateContract(config, {
+            address: CONTRACTS.AUCTION_HOUSE,
+            abi: AUCTION_HOUSE_ABI,
+            functionName: 'createBid',
+            args: [auction.nounId],
+            value: valueWei,
+            account: address!,
+          });
+          setActionMessage('Transaction submitted. Waiting for confirmation...');
+          hash = await writeContractAsync(simulation.request);
+        } catch (simErr) {
+          // Fallback to direct write if simulation fails
+          console.warn('Simulation failed; attempting direct write', simErr);
+          setActionMessage('Submitting transaction...');
+          hash = await writeContractAsync({
+            address: CONTRACTS.AUCTION_HOUSE,
+            abi: AUCTION_HOUSE_ABI,
+            functionName: 'createBid',
+            args: [auction.nounId],
+            value: valueWei,
+          });
+        }
+
+        if (!hash) throw new Error('No transaction hash');
+
+        setTxHash(hash);
+        const receipt = await waitForTransactionReceipt(config, {
+          hash,
+          timeout: 60_000,
+        });
+
+        if (receipt.status === 'success') {
+          setActionMessage('Bid confirmed!');
+          setBidModalOpen(false);
+          await refetch();
+        } else {
+          setActionError('Bid transaction failed');
+        }
+      } catch (error) {
+        console.error('Bid failed', error);
+        const message =
+          error instanceof Error ? error.message : 'Failed to place bid';
+        setActionMessage(null);
+        setActionError(message);
+      } finally {
+        setBidSubmitting(false);
+        setTimeout(() => setActionMessage(null), 6000);
+      }
+    },
+    [auction, isConnected, address, writeContractAsync, refetch]
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+      <div className="max-w-6xl mx-auto p-6">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </button>
+
+        <AuctionHero
+          auction={activeAuction}
+          countdownMs={displayCountdown}
+          onOpenBid={handleOpenBid}
+          isConnected={isConnected}
+          onConnectWallet={handleConnectWallet}
+          dateLabel={dateLabel}
+          backgroundHex={backgroundHex}
+          minRequiredWei={isCurrentView ? minRequiredWei : undefined}
+          onPlaceBid={canBid ? handleBidSubmit : undefined}
+          isCurrentView={isCurrentView}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          canGoNext={canGoNext}
+        />
+
+        {/* Info Cards */}
+        <div className="grid md:grid-cols-3 gap-6 mt-8">
+          <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50">
+            <div className="text-2xl mb-2">🏆</div>
+            <h3 className="font-semibold text-white mb-2">Own an NFT</h3>
+            <p className="text-sm text-gray-400">
+              Win the auction to own a unique NFT with voting power
+            </p>
+          </div>
+
+          <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50">
+            <div className="text-2xl mb-2">🗳️</div>
+            <h3 className="font-semibold text-white mb-2">Vote on Proposals</h3>
+            <p className="text-sm text-gray-400">
+              Use your NFT to vote on creator coin purchase proposals
+            </p>
+          </div>
+
+          <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50">
+            <div className="text-2xl mb-2">💰</div>
+            <h3 className="font-semibold text-white mb-2">Support the DAO</h3>
+            <p className="text-sm text-gray-400">
+              Auction proceeds go directly to the DAO treasury
+            </p>
+          </div>
+        </div>
+
+        {bidModalOpen && auction && (
+          <BidModal
+            isOpen={bidModalOpen}
+            nounId={auction.nounId}
+            currentAmount={auction.amount}
+            minRequiredWei={minRequiredWei}
+            onDismiss={() => {
+              setBidModalOpen(false);
+              setActionError(null);
+            }}
+            onConfirm={handleBidSubmit}
+            isSubmitting={bidSubmitting}
+            errorMessage={actionError ?? undefined}
+          />
+        )}
+
+        {(actionMessage || actionError || txHash) && (
+          <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm shadow-sm">
+            {actionMessage && <p className="font-medium">{actionMessage}</p>}
+            {actionError && <p className="text-red-600">{actionError}</p>}
+            {txHash && (
+              <p className="text-xs text-muted-foreground">
+                Tx hash:{' '}
+                <a
+                  href={`https://sepolia.basescan.org/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  {txHash.slice(0, 10)}...
+                </a>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

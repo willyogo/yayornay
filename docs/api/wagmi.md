@@ -2,7 +2,7 @@
 
 ## Configuration
 
-Wagmi is configured in `src/lib/wagmi.ts` using the createConfig function. The configuration specifies Base Mainnet (Chain ID 8453) as the only chain, uses Coinbase Wallet connector with smartWalletOnly preference, and connects to Base via Coinbase Developer Platform RPC endpoint using an API key from environment variables.
+Wagmi is configured in `src/lib/wagmi.ts` using the createConfig function. The configuration specifies Base Sepolia testnet (Chain ID 84532) as the only chain, uses Coinbase Wallet connector with smartWalletOnly preference, and connects to Base Sepolia via the public RPC endpoint (configurable via environment variable).
 
 ## Provider Setup
 
@@ -24,7 +24,7 @@ This hook handles wallet disconnection. It provides a disconnect function that t
 
 ## Chain Configuration
 
-The application is configured to use Base Mainnet exclusively. The chain ID is 8453, and the RPC endpoint is provided by Coinbase Developer Platform.
+The application is configured to use Base Sepolia testnet. The chain ID is 84532, and the RPC endpoint uses the public Base Sepolia RPC or can be configured via environment variable.
 
 ## Connector Configuration
 
@@ -42,11 +42,11 @@ Wagmi manages blockchain state internally. Connection state is persisted in loca
 
 ## Error Handling
 
-Connection errors are available through the error property returned by useConnect. Common errors include user rejection when the user declines the connection prompt, no provider when the wallet extension isn't installed, and wrong chain when connected to a different chain than Base.
+Connection errors are available through the error property returned by useConnect. Common errors include user rejection when the user declines the connection prompt, no provider when the wallet extension isn't installed, and wrong chain when connected to a different chain than Base Sepolia.
 
 ## Current Implementation Details
 
-The application checks wallet connection before allowing actions. The useVoting hook throws an error if no address is available. Addresses are always lowercased for consistency when storing in the database. There is no chain switching logic currently - the app assumes users are on Base.
+The application checks wallet connection before allowing actions. The useVoting hook throws an error if no address is available. Addresses are always lowercased for consistency when storing in the database. There is no chain switching logic currently - the app assumes users are on Base Sepolia testnet.
 
 ## Related Documentation
 

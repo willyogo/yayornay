@@ -24,10 +24,10 @@ export function WalletConnect() {
   return (
     <button
       onClick={() => connect({ connector: connectors[0] })}
-      className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-full hover:shadow-xl hover:scale-105 transition-all duration-200 font-semibold text-lg"
+      className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-full hover:shadow-xl hover:scale-105 transition-all duration-200 font-semibold text-lg"
     >
       <Wallet className="w-5 h-5" />
-      Connect Wallet
+      Login
     </button>
   );
 }
