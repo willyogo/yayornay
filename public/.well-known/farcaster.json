@@ -1,8 +1,8 @@
 {
   "accountAssociation": {
-    "header": "eyJmaWQiOjAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIn0",
+    "header": "eyJmaWQiOjIwNzIxLCJ0eXBlIjoiYXV0aCIsImtleSI6IjB4MmQxODgyMzA0YzlBNkZhN0Y5ODdDMUI0MWM5ZkQ1RThDRjA1MTZlMiJ9",
     "payload": "eyJkb21haW4iOiJ5YXlvcm5heS52ZXJjZWwuYXBwIn0",
-    "signature": "MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA"
+    "signature": "E9RQXbRdFqPzydh5W8F/4qfxyPIQxKlAnC1p65wn0AxX1qroaJOXpiolWniiYkKWtYrGcocLWszkZZr5v4ez+Bw="
   },
   "baseBuilder": {
     "ownerAddress": "0x9e77Bee7Bebe3c2B8435Cdb8AE5E0F4c497E236D"
