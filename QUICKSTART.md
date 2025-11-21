@@ -26,6 +26,9 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJib2x0Iiwi
 VITE_CDP_API_KEY=a142a893-a9b1-4b3c-bbbd-b609c06dd145
 # Optional: Custom Base Sepolia RPC (defaults to https://sepolia.base.org)
 # VITE_BASE_SEPOLIA_RPC_URL=https://your-custom-rpc-url.com
+
+# Optional: Builder DAO Subgraph URL (for faster auction data)
+# VITE_BUILDER_DAO_SUBGRAPH_URL=https://your-subgraph-url.com
 ```
 
 **Note:** These are default values already in the code. You can use them for testing, but for production you should use your own credentials.

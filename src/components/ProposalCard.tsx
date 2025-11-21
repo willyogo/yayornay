@@ -104,9 +104,7 @@ export function ProposalCard({ proposal, onDetailClick }: ProposalCardProps) {
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-
-        <div className="absolute bottom-0 left-0 right-0 p-6 text-white pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white shadow-lg">
               <img
