@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Heart, MoveUp } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { ProposalCard } from './ProposalCard';
@@ -22,10 +22,6 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
   const activePointerId = useRef<number | null>(null);
   const activeInputType = useRef<'pointer' | 'mouse' | 'touch' | null>(null);
   const animationLock = useRef(false);
-  const supportsPointerEvents = useMemo(
-    () => typeof window !== 'undefined' && 'PointerEvent' in window,
-    []
-  );
 
   const currentProposal = proposals[currentIndex];
 
@@ -52,7 +48,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
     if (!currentProposal || animationLock.current) return;
 
     animationLock.current = true;
-    if (supportsPointerEvents && activePointerId.current !== null) {
+    if (activePointerId.current !== null && cardRef.current) {
       cardRef.current?.releasePointerCapture(activePointerId.current);
     }
     activePointerId.current = null;
@@ -82,11 +78,16 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
     }, 400);
   };
 
-  const handleDragStart = (clientX: number, clientY: number, source: 'pointer' | 'mouse' | 'touch', pointerId: number) => {
+  const handleDragStart = (
+    clientX: number,
+    clientY: number,
+    pointerId: number,
+    inputType: 'pointer' | 'mouse' | 'touch'
+  ) => {
     if (animationLock.current) return;
 
     activePointerId.current = pointerId;
-    activeInputType.current = source;
+    activeInputType.current = inputType;
     setIsDragging(true);
     setActiveVote(null);
     startPos.current = { x: clientX, y: clientY };
@@ -125,7 +126,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
   const handleDragEnd = () => {
     if (!isDragging || animationLock.current) return;
 
-    if (supportsPointerEvents && activePointerId.current !== null) {
+    if (activePointerId.current !== null && cardRef.current) {
       cardRef.current?.releasePointerCapture(activePointerId.current);
     }
     setIsDragging(false);
@@ -180,9 +181,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
 
     const handleTouchMove = (e: TouchEvent) => {
       if (activeInputType.current !== 'touch') return;
-      const touch = Array.from(e.touches).find(
-        (t) => t.identifier === activePointerId.current
-      );
+      const touch = Array.from(e.touches).find((t) => t.identifier === activePointerId.current);
       if (!touch) return;
       e.preventDefault();
       handleDragMove(touch.clientX, touch.clientY);
@@ -190,25 +189,19 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
 
     const handleTouchEnd = (e: TouchEvent) => {
       if (activeInputType.current !== 'touch') return;
-      const match = Array.from(e.changedTouches).some(
-        (t) => t.identifier === activePointerId.current
-      );
+      const match = Array.from(e.changedTouches).some((t) => t.identifier === activePointerId.current);
       if (!match) return;
       handleDragEnd();
     };
 
-    if (activeInputType.current === 'pointer') {
-      window.addEventListener('pointermove', handlePointerMove);
-      window.addEventListener('pointerup', handlePointerUp);
-      window.addEventListener('pointercancel', handlePointerUp);
-    } else if (activeInputType.current === 'mouse') {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    } else if (activeInputType.current === 'touch') {
-      window.addEventListener('touchmove', handleTouchMove, { passive: false });
-      window.addEventListener('touchend', handleTouchEnd);
-      window.addEventListener('touchcancel', handleTouchEnd);
-    }
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
 
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
@@ -220,7 +213,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [isDragging, handleDragMove, handleDragEnd]);
+  }, [isDragging]);
 
   if (currentIndex >= proposals.length) {
     return (
@@ -247,7 +240,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
       <div className="flex-1 relative max-w-md w-full mx-auto p-4">
         <div
           ref={cardRef}
-          className="relative w-full h-full transition-transform will-change-transform touch-none select-none"
+          className="relative w-full h-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing"
           style={{
             transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`,
             transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(.22,.61,.36,1)',
@@ -256,27 +249,38 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
           draggable={false}
           onDragStart={(e) => e.preventDefault()}
           onPointerDown={(e) => {
-            if (!supportsPointerEvents) return;
             if (e.pointerType === 'mouse' && e.button !== 0) return;
-            if (!(e.target as HTMLElement).closest('.card-content')) return;
-            handleDragStart(e.clientX, e.clientY, 'pointer', e.pointerId);
+            handleDragStart(e.clientX, e.clientY, e.pointerId, 'pointer');
             cardRef.current?.setPointerCapture(e.pointerId);
           }}
+          onPointerMove={(e) => {
+            if (activePointerId.current !== e.pointerId) return;
+            handleDragMove(e.clientX, e.clientY);
+          }}
+          onPointerUp={(e) => {
+            if (activePointerId.current !== e.pointerId) return;
+            cardRef.current?.releasePointerCapture(e.pointerId);
+            handleDragEnd();
+          }}
+          onPointerCancel={(e) => {
+            if (activePointerId.current !== e.pointerId) return;
+            cardRef.current?.releasePointerCapture(e.pointerId);
+            resetCardPosition();
+            setIsDragging(false);
+            activePointerId.current = null;
+            activeInputType.current = null;
+          }}
           onMouseDown={(e) => {
-            if (supportsPointerEvents) return;
             if (e.button !== 0) return;
-            if (!(e.target as HTMLElement).closest('.card-content')) return;
-            handleDragStart(e.clientX, e.clientY, 'mouse', -1);
+            handleDragStart(e.clientX, e.clientY, -1, 'mouse');
           }}
           onTouchStart={(e) => {
-            if (supportsPointerEvents) return;
             const touch = e.touches[0];
             if (!touch) return;
-            if (!(e.target as HTMLElement).closest('.card-content')) return;
-            handleDragStart(touch.clientX, touch.clientY, 'touch', touch.identifier ?? 0);
+            handleDragStart(touch.clientX, touch.clientY, touch.identifier ?? 0, 'touch');
           }}
         >
-          <div className="card-content w-full h-full">
+          <div className="card-content relative w-full h-full cursor-grab active:cursor-grabbing">
             <ProposalCard
               proposal={currentProposal}
               onDetailClick={() => onDetailClick(currentProposal)}
