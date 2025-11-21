@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, ExternalLink } from 'lucide-react';
+import { X, ExternalLink, TrendingUp, Users, DollarSign } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
-import { getCreatorProfile, CreatorToken } from '../lib/zora';
+import { fetchCoinData, getCreatorCoinAddress, ZoraCoinData, formatCurrency } from '../lib/zora';
 
 interface CreatorFeedModalProps {
   proposal: Proposal;
@@ -9,25 +9,28 @@ interface CreatorFeedModalProps {
 }
 
 export function CreatorFeedModal({ proposal, onClose }: CreatorFeedModalProps) {
-  const [tokens, setTokens] = useState<CreatorToken[]>([]);
+  const [coinData, setCoinData] = useState<ZoraCoinData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadCreatorTokens() {
+    async function loadCreatorCoin() {
       try {
-        const profile = await getCreatorProfile(proposal.creator_address);
-        if (profile) {
-          setTokens(profile.tokens);
+        const identifier = proposal.creator_username || proposal.creator_address;
+        const coinAddress = await getCreatorCoinAddress(identifier);
+        
+        if (coinAddress) {
+          const data = await fetchCoinData(coinAddress);
+          setCoinData(data);
         }
       } catch (error) {
-        console.error('Error loading creator tokens:', error);
+        console.error('Error loading creator coin:', error);
       } finally {
         setLoading(false);
       }
     }
 
-    loadCreatorTokens();
-  }, [proposal.creator_address]);
+    loadCreatorCoin();
+  }, [proposal.creator_address, proposal.creator_username]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -63,51 +66,144 @@ export function CreatorFeedModal({ proposal, onClose }: CreatorFeedModalProps) {
             <div className="flex items-center justify-center p-12">
               <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : tokens.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 p-4">
-              {tokens.map((token) => (
-                <a
-                  key={token.id}
-                  href={`https://zora.co/collect/base:${token.collectionAddress}/${token.tokenId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group relative bg-gray-50 rounded-2xl overflow-hidden hover:shadow-lg transition-all"
-                >
-                  <div className="aspect-square bg-gradient-to-br from-gray-200 to-gray-300">
-                    {token.image ? (
+          ) : coinData ? (
+            <div className="p-6 space-y-6">
+              {/* Coin Header */}
+              <div className="flex items-start gap-4">
+                {coinData.mediaContent?.previewImage?.medium && (
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0">
+                    <img
+                      src={coinData.mediaContent.previewImage.medium}
+                      alt={coinData.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                    {coinData.name}
+                  </h3>
+                  <p className="text-lg text-gray-600 mb-2">${coinData.symbol}</p>
+                  {coinData.description && (
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {coinData.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 text-blue-600 text-sm mb-2">
+                    <DollarSign className="w-4 h-4" />
+                    Market Cap
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(coinData.marketCap)}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 text-purple-600 text-sm mb-2">
+                    <TrendingUp className="w-4 h-4" />
+                    24h Volume
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(coinData.volume24h)}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 text-green-600 text-sm mb-2">
+                    <Users className="w-4 h-4" />
+                    Holders
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {coinData.uniqueHolders.toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 text-orange-600 text-sm mb-2">
+                    <DollarSign className="w-4 h-4" />
+                    Total Supply
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(coinData.totalSupply)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Creator Profile */}
+              {coinData.creatorProfile && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    {coinData.creatorProfile.avatar?.medium && (
                       <img
-                        src={token.image}
-                        alt={token.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        src={coinData.creatorProfile.avatar.medium}
+                        alt={coinData.creatorProfile.displayName || coinData.creatorProfile.handle || 'Creator'}
+                        className="w-12 h-12 rounded-full"
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-4xl text-gray-400">
-                        🎨
-                      </div>
                     )}
+                    <div>
+                      <h4 className="font-semibold text-gray-900">
+                        {coinData.creatorProfile.displayName || coinData.creatorProfile.handle}
+                      </h4>
+                      {coinData.creatorProfile.handle && (
+                        <p className="text-sm text-gray-500">@{coinData.creatorProfile.handle}</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="p-3">
-                    <h3 className="font-semibold text-gray-900 text-sm line-clamp-1 group-hover:text-pink-600 transition-colors">
-                      {token.name}
-                    </h3>
-                    {token.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2 mt-1">
-                        {token.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="absolute top-2 right-2 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ExternalLink className="w-4 h-4 text-gray-700" />
-                  </div>
-                </a>
-              ))}
+                  {coinData.creatorProfile.bio && (
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {coinData.creatorProfile.bio}
+                    </p>
+                  )}
+                  {coinData.creatorProfile.socialAccounts && (
+                    <div className="flex gap-2 mt-3">
+                      {coinData.creatorProfile.socialAccounts.farcaster && (
+                        <a
+                          href={`https://warpcast.com/${coinData.creatorProfile.socialAccounts.farcaster.username}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full hover:bg-purple-200 transition-colors"
+                        >
+                          Farcaster
+                        </a>
+                      )}
+                      {coinData.creatorProfile.socialAccounts.twitter && (
+                        <a
+                          href={`https://twitter.com/${coinData.creatorProfile.socialAccounts.twitter.username}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-200 transition-colors"
+                        >
+                          Twitter
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* View on Zora */}
+              <a
+                href={`https://zora.co/collect/base:${coinData.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              >
+                View on Zora
+                <ExternalLink className="w-4 h-4" />
+              </a>
             </div>
           ) : (
             <div className="p-12 text-center">
-              <div className="text-6xl mb-4">🎨</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No creations yet</h3>
+              <div className="text-6xl mb-4">💰</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No creator coin yet</h3>
               <p className="text-gray-500">
-                This creator hasn't minted any tokens on Zora yet.
+                This creator hasn't launched a coin on Zora yet.
               </p>
             </div>
           )}
