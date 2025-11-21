@@ -277,7 +277,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
 
         {proposals[currentIndex + 1] && (
           <div
-            className="absolute inset-0 m-4 pointer-events-none z-0"
+            className="absolute inset-0 m-4 z-0"
             style={{
               transform: 'scale(0.95) translateY(10px)',
               opacity: 0.5,

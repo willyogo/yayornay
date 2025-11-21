@@ -2,9 +2,50 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useReadContract } from 'wagmi';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
 import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
+import { fetchLatestAuction, isSubgraphConfigured } from '../lib/subgraph';
 
 export function useAuction() {
-  const { data: auctionData, isLoading, error, refetch } = useReadContract({
+  const [subgraphAuction, setSubgraphAuction] = useState<Auction | undefined>();
+  const [subgraphLoading, setSubgraphLoading] = useState(true);
+
+  // Try subgraph first (matching original component approach)
+  useEffect(() => {
+    if (!isSubgraphConfigured()) {
+      setSubgraphLoading(false);
+      return;
+    }
+
+    let mounted = true;
+    const loadSubgraph = async () => {
+      try {
+        const sg = await fetchLatestAuction();
+        if (!mounted) return;
+        if (sg) {
+          setSubgraphAuction({
+            nounId: BigInt(sg.id),
+            amount: BigInt(sg.amount),
+            startTime: BigInt(sg.startTime),
+            endTime: BigInt(sg.endTime),
+            bidder: (sg.bidder?.id ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+            settled: Boolean(sg.settled),
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to load auction from subgraph, falling back to on-chain', error);
+      } finally {
+        if (mounted) setSubgraphLoading(false);
+      }
+    };
+
+    loadSubgraph();
+    const interval = setInterval(loadSubgraph, 15_000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const { data: auctionData, isLoading: contractLoading, error, refetch } = useReadContract({
     address: CONTRACTS.AUCTION_HOUSE,
     abi: AUCTION_HOUSE_ABI,
     functionName: 'auction',
@@ -31,9 +72,15 @@ export function useAuction() {
     functionName: 'duration',
   });
 
+  // Prefer subgraph data if available, otherwise parse contract data
   // Parse auction data: contract's "endTime" field actually contains the startTime
   // Calculate actual endTime as startTime + duration
   const auction: Auction | undefined = useMemo(() => {
+    // Prefer subgraph data if available
+    if (subgraphAuction) {
+      return subgraphAuction;
+    }
+
     if (!auctionData) return undefined;
     
     try {
@@ -59,7 +106,7 @@ export function useAuction() {
     } catch {
       return auctionData as Auction;
     }
-  }, [auctionData, duration]);
+  }, [subgraphAuction, auctionData, duration]);
   const [countdown, setCountdown] = useState(0);
 
   // Update countdown every second
@@ -94,6 +141,7 @@ export function useAuction() {
   const status = getAuctionStatus(auction);
   const countdownLabel = formatCountdown(countdown);
   const etherLabel = auction ? formatEth(auction.amount, 3) : '0 ETH';
+  const isLoading = subgraphLoading || contractLoading;
 
   return {
     auction,
@@ -113,8 +161,26 @@ export function useAuction() {
     status,
     isLoading,
     error,
-    refetch: useCallback(() => {
-      refetch();
+    refetch: useCallback(async () => {
+      // Refetch both subgraph and contract
+      if (isSubgraphConfigured()) {
+        try {
+          const sg = await fetchLatestAuction();
+          if (sg) {
+            setSubgraphAuction({
+              nounId: BigInt(sg.id),
+              amount: BigInt(sg.amount),
+              startTime: BigInt(sg.startTime),
+              endTime: BigInt(sg.endTime),
+              bidder: (sg.bidder?.id ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+              settled: Boolean(sg.settled),
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to refetch from subgraph', error);
+        }
+      }
+      return refetch();
     }, [refetch]),
   };
 }
