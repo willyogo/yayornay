@@ -28,7 +28,7 @@ The application is configured to use Base Sepolia testnet. The chain ID is 84532
 
 ## Connector Configuration
 
-Coinbase Wallet connector is configured with the app name "DAO Swipe" and preference set to smartWalletOnly, meaning only smart wallets are allowed, not externally owned accounts.
+Coinbase Wallet connector is configured with the app name "YAYNAY" and preference set to smartWalletOnly, meaning only smart wallets are allowed, not externally owned accounts.
 
 ## Current Usage
 

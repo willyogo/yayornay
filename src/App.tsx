@@ -106,7 +106,7 @@ function App() {
               <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center">
                 <span className="text-white text-xl">💖</span>
               </div>
-              <h1 className="text-xl font-bold text-gray-900">DAO Swipe</h1>
+              <h1 className="text-xl font-bold text-gray-900">YAYNAY</h1>
             </div>
 
             <div className="flex items-center gap-4">
