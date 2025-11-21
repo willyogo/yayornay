@@ -139,9 +139,9 @@ export function CreatorFeedModal({ proposal, onClose }: CreatorFeedModalProps) {
               {coinData.creatorProfile && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center gap-3 mb-3">
-                    {coinData.creatorProfile.avatar?.medium && (
+                    {(coinData.creatorProfile.avatar?.previewImage?.medium || coinData.creatorProfile.avatar?.previewImage?.small) && (
                       <img
-                        src={coinData.creatorProfile.avatar.medium}
+                        src={coinData.creatorProfile.avatar?.previewImage?.medium || coinData.creatorProfile.avatar?.previewImage?.small}
                         alt={coinData.creatorProfile.displayName || coinData.creatorProfile.handle || 'Creator'}
                         className="w-12 h-12 rounded-full"
                       />

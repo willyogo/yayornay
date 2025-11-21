@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { fetchCoinData, getCreatorCoinAddress, ZoraCoinData } from '../lib/zora';
+import { fetchCoinData, fetchProfileCoins, getCreatorCoinAddress, ZoraCoinData, ContentCoin } from '../lib/zora';
 
 export function useZoraCoin(creatorIdentifier: string | null) {
   const [coinData, setCoinData] = useState<ZoraCoinData | null>(null);
+  const [contentCoins, setContentCoins] = useState<ContentCoin[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!creatorIdentifier) {
       setCoinData(null);
+      setContentCoins([]);
       setLoading(false);
       return;
     }
@@ -24,6 +26,8 @@ export function useZoraCoin(creatorIdentifier: string | null) {
       setError(null);
 
       try {
+        const profileCoinsPromise = fetchProfileCoins(creatorIdentifier, 4);
+
         // First, try to get the creator's coin address
         console.log('📍 [useZoraCoin] Fetching creator coin address...');
         const coinAddress = await getCreatorCoinAddress(creatorIdentifier);
@@ -39,19 +43,23 @@ export function useZoraCoin(creatorIdentifier: string | null) {
           return;
         }
 
-        // Fetch the coin data
+        // Fetch the coin data and content coins in parallel
         console.log('💰 [useZoraCoin] Fetching coin data for address:', coinAddress);
-        const data = await fetchCoinData(coinAddress);
+        const [data, profileCoins] = await Promise.all([
+          fetchCoinData(coinAddress),
+          profileCoinsPromise,
+        ]);
         
         console.log('💰 [useZoraCoin] Coin data result:', data);
         
         if (mounted) {
+          setContentCoins(profileCoins || []);
           if (data) {
             console.log('✅ [useZoraCoin] Successfully loaded coin data:', {
               name: data.name,
               symbol: data.symbol,
               hasProfile: !!data.creatorProfile,
-              hasAvatar: !!data.creatorProfile?.avatar?.medium,
+              hasAvatar: !!data.creatorProfile?.avatar?.previewImage?.medium,
               hasCoverImage: !!data.mediaContent?.previewImage?.medium
             });
             setCoinData(data);
@@ -66,6 +74,7 @@ export function useZoraCoin(creatorIdentifier: string | null) {
         if (mounted) {
           setError(err instanceof Error ? err.message : 'Failed to load coin');
           setCoinData(null);
+          setContentCoins([]);
         }
       } finally {
         if (mounted) {
@@ -81,5 +90,5 @@ export function useZoraCoin(creatorIdentifier: string | null) {
     };
   }, [creatorIdentifier]);
 
-  return { coinData, loading, error };
+  return { coinData, loading, error, contentCoins };
 }

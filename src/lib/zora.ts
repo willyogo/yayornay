@@ -1,4 +1,4 @@
-import { setApiKey, getCoin, getProfile } from '@zoralabs/coins-sdk';
+import { setApiKey, getCoin, getProfile, getProfileCoins } from '@zoralabs/coins-sdk';
 
 // Set your Zora API key
 // Get one from: https://zora.co/settings/developer
@@ -26,8 +26,11 @@ export interface ZoraCoinData {
     displayName?: string;
     bio?: string;
     avatar?: {
-      medium?: string;
-      small?: string;
+      previewImage?: {
+        medium?: string;
+        small?: string;
+        blurhash?: string;
+      };
     };
     socialAccounts?: {
       farcaster?: {
@@ -44,6 +47,13 @@ export interface ZoraCoinData {
       small?: string;
     };
   };
+}
+
+export interface ContentCoin {
+  id: string;
+  title: string;
+  image?: string;
+  address?: string;
 }
 
 /**
@@ -90,7 +100,7 @@ export async function fetchCoinData(
     console.log('✅ [fetchCoinData] Coin data extracted:', {
       name: coinData.name,
       hasCreatorProfile: !!coinData.creatorProfile,
-      avatarPath: coinData.creatorProfile?.avatar?.medium,
+      avatarPath: coinData.creatorProfile?.avatar?.previewImage?.medium,
       mediaPath: coinData.mediaContent?.previewImage?.medium
     });
 
@@ -137,6 +147,54 @@ export async function fetchProfileData(identifier: string) {
   } catch (error) {
     console.error('❌ [fetchProfileData] Error:', error);
     return null;
+  }
+}
+
+/**
+ * Fetch latest content coins created by a profile
+ */
+export async function fetchProfileCoins(
+  identifier: string,
+  count: number = 4
+): Promise<ContentCoin[]> {
+  try {
+    const cleanIdentifier = identifier.startsWith('@') ? identifier.slice(1) : identifier;
+    const profileResponse = await getProfile({
+      identifier: cleanIdentifier,
+    });
+
+    // Try dedicated endpoint, but gracefully fall back to the profile response if it fails
+    let createdCoins =
+      profileResponse.data?.profile?.createdCoins?.edges || [];
+
+    try {
+      const coinsResponse = await getProfileCoins({
+        identifier: cleanIdentifier,
+        count,
+      });
+      createdCoins = coinsResponse?.data?.profile?.createdCoins?.edges || createdCoins;
+    } catch (err) {
+      console.warn('⚠️ [fetchProfileCoins] getProfileCoins fallback to profile data:', err);
+    }
+
+    if (!createdCoins || createdCoins.length === 0) return [];
+
+    return createdCoins
+      .slice(0, count)
+      .map((edge) => edge.node)
+      .map((node) => ({
+        id: node.id || node.address,
+        title: node.name || node.symbol || 'Content coin',
+        address: node.address,
+        image:
+          node.mediaContent?.previewImage?.medium ||
+          node.mediaContent?.previewImage?.small ||
+          node.mediaContent?.originalUri,
+      }))
+      .filter((coin) => coin.id);
+  } catch (error) {
+    console.error('❌ [fetchProfileCoins] Error:', error);
+    return [];
   }
 }
 

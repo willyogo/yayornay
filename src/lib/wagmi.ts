@@ -10,7 +10,7 @@ export const config = createConfig({
   chains: [baseSepolia],
   connectors: [
     coinbaseWallet({
-      appName: 'DAO Swipe',
+      appName: 'YAYNAY',
       preference: 'smartWalletOnly',
     }),
   ],
