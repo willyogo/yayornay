@@ -81,9 +81,10 @@ const FALLBACK_DISPLAY = {
 };
 
 const DEBOUNCE_MS = 400;
-const DEFAULT_SUBMISSION_ENDPOINT = 'https://api.yaynay.wtf/api/analyze';
+const DEFAULT_API_ENDPOINT = 'https://api.yaynay.wtf/api/analyze';
 const SUBMISSION_ENDPOINT =
-  import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_SUBMISSION_ENDPOINT;
+  import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_API_ENDPOINT;
+const QUEUE_ENDPOINT = import.meta.env?.VITE_QUEUE_ENDPOINT || DEFAULT_API_ENDPOINT;
 
 const mockQueueResponse = {
   stats: {
@@ -147,13 +148,11 @@ const mockSubmitCreator = async (creator: string): Promise<AnalysisResponse> => 
 };
 
 async function postSubmission(body: Record<string, unknown>) {
-  const endpoint = SUBMISSION_ENDPOINT;
-
-  if (!endpoint) {
+  if (!SUBMISSION_ENDPOINT) {
     throw new Error('No submission endpoint configured');
   }
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(SUBMISSION_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -168,7 +167,17 @@ async function postSubmission(body: Record<string, unknown>) {
 
 async function fetchVotingQueue() {
   try {
-    const data = await postSubmission({ username: 'queue', confidenceThreshold: 0.3 });
+    const response = await fetch(QUEUE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'queue', confidenceThreshold: 0.3 }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Queue endpoint returned ${response.status}`);
+    }
+
+    const data = await response.json();
 
     if (!data?.success || !data?.suggestions) {
       throw new Error('Invalid queue response');
