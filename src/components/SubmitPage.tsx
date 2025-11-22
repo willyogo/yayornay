@@ -87,6 +87,13 @@ const SUBMISSION_ENDPOINT =
 const CORS_PROXIES = [
   // corsproxy.io expects the upstream URL to be URL-encoded
   (endpoint: string) => `https://corsproxy.io/?${encodeURIComponent(endpoint)}`,
+  // isomorphic-git proxy supports HTTPS pages and relaxed SSL handling
+  (endpoint: string) => `https://cors.isomorphic-git.org/${endpoint}`,
+  // thingproxy is lenient toward self-signed certificates while returning CORS headers
+  (endpoint: string) =>
+    `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(endpoint)}`,
+  // yacdn provides another HTTPS relay that can handle TLS quirks
+  (endpoint: string) => `https://yacdn.org/proxy/${endpoint}`,
   // allorigins works similarly and provides redundancy if the first proxy blocks the request
   (endpoint: string) =>
     `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`,
