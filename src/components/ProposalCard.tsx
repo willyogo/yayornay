@@ -210,25 +210,13 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                   {proposal.title}
                 </h3>
 
-                {proposal.status === 'pending' ? (
-                  <div className="flex items-center justify-center py-6">
-                    <CountdownTimer
-                      targetDate={proposal.vote_start || proposal.created_at}
-                      onComplete={() => {
-                        // Optionally trigger a refetch when voting opens
-                        window.location.reload();
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <StatsGrid
-                    marketCap={displayData.marketCap}
-                    holders={displayData.holders}
-                    volume24h={displayData.volume24h}
-                    change24h={displayData.change24h}
-                    variant="compact"
-                  />
-                )}
+                <StatsGrid
+                  marketCap={displayData.marketCap}
+                  holders={displayData.holders}
+                  volume24h={displayData.volume24h}
+                  change24h={displayData.change24h}
+                  variant="compact"
+                />
               </div>
             </div>
 
@@ -245,6 +233,19 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                   <span>Pending</span>
                 </div>
               )}
+
+              {proposal.status === 'pending' && (
+                <div className="absolute bottom-7 left-1/2 -translate-x-1/2 z-10 bg-white rounded-2xl shadow-xl px-6 pt-4 pb-6">
+                  <CountdownTimer
+                    targetDate={proposal.vote_start || proposal.created_at}
+                    onComplete={() => {
+                      // Optionally trigger a refetch when voting opens
+                      window.location.reload();
+                    }}
+                  />
+                </div>
+              )}
+
               <div
                 className="w-full px-5 pt-2 pb-5 grid grid-cols-2 auto-rows-fr gap-3"
                 aria-hidden="true"
