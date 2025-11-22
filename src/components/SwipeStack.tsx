@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
-import { X, Heart, MoveUp, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Heart, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { ProposalCard } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
@@ -142,23 +142,18 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
     setDragOffset({ x: deltaX, y: deltaY });
 
     const absX = Math.abs(deltaX);
-    const absY = Math.abs(deltaY);
-    const upwardPull = deltaY < -20;
 
     let voteIntent: VoteType | null = null;
 
-    if (absY > absX && upwardPull) {
-      voteIntent = 'abstain';
-    } else if (absX > 20) {
+    if (absX > 20) {
       voteIntent = deltaX > 0 ? 'for' : 'against';
     }
 
     setActiveVote(voteIntent);
 
     const horizontalEdge = absX > window.innerWidth * 0.32;
-    const verticalEdge = deltaY < -window.innerHeight * 0.24;
 
-    if ((horizontalEdge || verticalEdge) && voteIntent) {
+    if (horizontalEdge && voteIntent) {
       handleVote(voteIntent);
     }
   };
@@ -171,14 +166,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
     setIsDragging(false);
 
     const horizontalThreshold = 110;
-    const verticalThreshold = 120;
     const absX = Math.abs(dragOffset.x);
-    const absY = Math.abs(dragOffset.y);
-
-    if (absY > absX && dragOffset.y < -verticalThreshold) {
-      handleVote('abstain');
-      return;
-    }
 
     if (dragOffset.x > horizontalThreshold) {
       handleVote('for');
@@ -343,7 +331,6 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
   const rotation = Math.max(Math.min(dragOffset.x / 15, 15), -15);
   const supportOpacity = Math.min(1, Math.abs(dragOffset.x) / 140);
-  const abstainOpacity = Math.min(1, Math.max(0, -dragOffset.y) / 140);
   const visibleProposals = availableProposals.slice(currentIndex, currentIndex + 2);
 
   return (
@@ -414,15 +401,6 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
                   NAY
                 </div>
               )}
-
-              {isTopCard && dragOffset.y < -40 && (
-                <div
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-white px-6 py-3 rounded-full font-bold text-xl shadow-xl"
-                  style={{ opacity: activeVote === 'abstain' ? 1 : abstainOpacity }}
-                >
-                  ABSTAIN
-                </div>
-              )}
             </div>
           );
         })}
@@ -465,14 +443,6 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
             className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <X className="w-8 h-8 text-red-600" />
-          </button>
-
-          <button
-            onClick={() => handleVote('abstain')}
-            disabled={voteStatus === 'submitting' || currentProposal?.status === 'pending'}
-            className="w-14 h-14 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            <MoveUp className="w-6 h-6 text-blue-600" />
           </button>
 
           <button
