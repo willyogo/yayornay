@@ -103,10 +103,11 @@ function App() {
         <header className="bg-white border-b border-gray-200 p-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center">
-                <span className="text-white text-xl">💖</span>
-              </div>
-              <h1 className="text-xl font-bold text-gray-900">YAYNAY</h1>
+              <img 
+                src="/.well-known/logo.png" 
+                alt="YAYNAY Logo" 
+                className="w-10 h-10 object-contain"
+              />
             </div>
 
             <div className="flex items-center gap-4">

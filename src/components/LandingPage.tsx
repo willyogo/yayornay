@@ -24,8 +24,12 @@ export function LandingPage({ onBecomeVoter }: LandingPageProps) {
           {testMode ? 'Test Mode ON' : 'Test Mode OFF'}
         </button>
         <div className="space-y-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-pink-500 to-rose-500 rounded-3xl mb-4 shadow-2xl">
-            <Heart className="w-10 h-10 text-white" fill="currentColor" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img 
+              src="/.well-known/logo.png" 
+              alt="YAYNAY Logo" 
+              className="w-20 h-20 object-contain"
+            />
           </div>
 
           <h1 className="text-6xl font-bold text-white leading-tight">
