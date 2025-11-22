@@ -26,7 +26,7 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
         className={`neo-toggle-option ${value === 'auction' ? 'active' : ''}`}
         aria-pressed={value === 'auction'}
       >
-        Auction
+        Get votes
       </button>
     </div>
   );

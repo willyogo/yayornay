@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { TrendingUp, TrendingDown, Users, DollarSign, ArrowLeft, ExternalLink, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, DollarSign, ArrowLeft, ExternalLink, Loader2, Triangle, Flame, Coins } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { useZoraCoin } from '../hooks/useZoraCoin';
 import { formatCurrency, calculate24hChange } from '../lib/zora';
@@ -75,21 +75,37 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
       id: 'featured',
       title: 'Featured drop',
       image: coverImage || 'https://images.pexels.com/photos/1939485/pexels-photo-1939485.jpeg?auto=compress&cs=tinysrgb&w=400',
+      marketCap: '1',
+      volume24h: '0',
+      totalVolume: '0',
+      creatorEarningsUsd: '0',
     },
     {
       id: 'latest-1',
       title: 'Latest content coin',
       image: 'https://images.pexels.com/photos/1545590/pexels-photo-1545590.jpeg?auto=compress&cs=tinysrgb&w=400',
+      marketCap: '0',
+      volume24h: '0',
+      totalVolume: '0',
+      creatorEarningsUsd: '0',
     },
     {
       id: 'latest-2',
       title: 'Exclusive drop',
       image: 'https://images.pexels.com/photos/1616403/pexels-photo-1616403.jpeg?auto=compress&cs=tinysrgb&w=400',
+      marketCap: '0',
+      volume24h: '0',
+      totalVolume: '0',
+      creatorEarningsUsd: '0',
     },
     {
       id: 'latest-3',
       title: 'Community pick',
       image: 'https://images.pexels.com/photos/185576/pexels-photo-185576.jpeg?auto=compress&cs=tinysrgb&w=400',
+      marketCap: '0',
+      volume24h: '0',
+      totalVolume: '0',
+      creatorEarningsUsd: '0',
     },
   ];
 
@@ -103,6 +119,11 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
     }));
 
   const feedCoins = contentCoins.length > 0 ? contentCoins : fallbackContentCoins;
+
+  const formatStat = (value?: string | number | null) => {
+    if (!value) return '$0';
+    return formatCurrency(value);
+  };
 
   useEffect(() => {
     if (flipState !== 'feed' || !hasMoreContentCoins) return;
@@ -342,8 +363,30 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                           <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/10 to-transparent" />
                         </div>
                         <div className="p-3">
-                          <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Content coin</p>
                           <p className="text-base font-semibold text-gray-900 line-clamp-2">{coin.title}</p>
+                          <div className="mt-3 grid grid-cols-3 divide-x divide-gray-200 border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="flex flex-col items-center gap-1 px-2 py-3 bg-white">
+                              <p className="text-[11px] uppercase tracking-wide text-gray-400">Market Cap</p>
+                              <div className="flex items-center gap-1 text-xs font-semibold text-green-600">
+                                <Triangle className="w-4 h-4 fill-green-500 text-green-500" />
+                                {formatStat(coin.marketCap)}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-center gap-1 px-2 py-3 bg-white">
+                              <p className="text-[11px] uppercase tracking-wide text-gray-400">24h Volume</p>
+                              <div className="flex items-center gap-1 text-xs font-semibold text-gray-800">
+                                <Flame className="w-4 h-4 text-gray-700" />
+                                {formatStat(coin.volume24h || coin.totalVolume)}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-center gap-1 px-2 py-3 bg-white">
+                              <p className="text-[11px] uppercase tracking-wide text-gray-400 text-center">Earnings</p>
+                              <div className="flex items-center gap-1 text-xs font-semibold text-gray-800">
+                                <Coins className="w-4 h-4 text-gray-700" />
+                                {formatStat(coin.creatorEarningsUsd)}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );

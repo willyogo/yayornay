@@ -54,6 +54,10 @@ export interface ContentCoin {
   title: string;
   image?: string;
   address?: string;
+  marketCap?: string;
+  volume24h?: string;
+  totalVolume?: string;
+  creatorEarningsUsd?: string;
 }
 
 export interface ContentCoinsResult {
@@ -213,6 +217,10 @@ export async function fetchProfileCoins(
           node.mediaContent?.previewImage?.medium ||
           node.mediaContent?.previewImage?.small ||
           node.mediaContent?.originalUri,
+        marketCap: node.marketCap,
+        volume24h: node.volume24h,
+        totalVolume: node.totalVolume,
+        creatorEarningsUsd: Array.isArray(node.creatorEarnings) ? node.creatorEarnings[0]?.amountUsd : undefined,
       }))
       .filter((coin: ContentCoin) => coin.id);
 
