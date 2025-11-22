@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
-import { parseEther } from 'viem';
+import { parseEther, formatEther } from 'viem';
 import NounImage from './NounImage';
 import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
 import type { Auction } from '../config/contracts';
@@ -202,28 +202,7 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
             status === 'ended' ? (
               <div className="flex flex-col gap-3">
                 {auction && !auction.settled ? (
-                  <>
-                    {/* Debug info for settle button */}
-                    <div className="rounded-2xl border-2 border-yellow-300 bg-yellow-50 px-4 py-3 text-xs font-mono">
-                      <p className="font-semibold text-yellow-900 mb-2">Settle Button Debug:</p>
-                      <div className="space-y-1 text-yellow-800">
-                        <p>currentWalletAddress: {currentWalletAddress || 'null/undefined'}</p>
-                        <p>auction.bidder: {auction.bidder || 'null/undefined'}</p>
-                        <p>currentWalletAddress (lowercase): {currentWalletAddress?.toLowerCase() || 'N/A'}</p>
-                        <p>auction.bidder (lowercase): {auction.bidder?.toLowerCase() || 'N/A'}</p>
-                        <p className="font-semibold">
-                          Match: {currentWalletAddress && auction.bidder && currentWalletAddress.toLowerCase() === auction.bidder.toLowerCase() ? '✅ TRUE' : '❌ FALSE'}
-                        </p>
-                        <p>Button text will be: {
-                          currentWalletAddress &&
-                          auction.bidder &&
-                          currentWalletAddress.toLowerCase() === auction.bidder.toLowerCase()
-                            ? 'Claim NFT'
-                            : 'Start Next Auction'
-                        }</p>
-                      </div>
-                    </div>
-                    <button
+                  <button
                       type="button"
                       onClick={onSettle}
                       disabled={buttonDisabled}
@@ -237,7 +216,6 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
                         ? 'Claim NFT'
                         : 'Start Next Auction'}
                     </button>
-                  </>
                 ) : (
                   <div className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
                     Auction settled. Waiting for the next drop.
@@ -282,9 +260,14 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
                       </button>
                     </div>
                     {minRequiredWei && (
-                      <p className="text-xs text-gray-500">
-                        Minimum bid: {formatEth(minRequiredWei, 3)} ETH
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setBidInput(formatEther(minRequiredWei))}
+                        className="text-xs text-gray-500 hover:text-gray-700 cursor-pointer transition-colors"
+                        aria-label="Click to auto-fill minimum bid"
+                      >
+                        Minimum bid: {formatEth(minRequiredWei, 3)}
+                      </button>
                     )}
                   </div>
                 )}
