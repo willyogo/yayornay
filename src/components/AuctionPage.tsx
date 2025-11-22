@@ -13,6 +13,7 @@ import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts'
 import AuctionHero from './AuctionHero';
 import BidModal from './BidModal';
 import { getAuctionStatus } from '../utils/auction';
+import { fetchAuctionById, isSubgraphConfigured } from '../lib/subgraph';
 
 interface AuctionPageProps {
   onBack: () => void;
@@ -55,12 +56,28 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
 
   const { writeContractAsync } = useWriteContract();
 
-  // Update viewNounId when current auction changes
+  // Update viewNounId when current auction changes (only if not viewing a past auction)
   useEffect(() => {
     if (!auction) return;
-    // Do not override if user is viewing a past auction
-    setViewNounId((prev) => (prev == null || prev >= Number(auction.nounId) ? Number(auction.nounId) : prev));
-    setDisplayAuction(auction);
+    const currentNounId = Number(auction.nounId);
+    
+    // Only auto-update if:
+    // 1. viewNounId is null (initial load)
+    // 2. viewNounId is >= currentNounId (viewing current or future auction)
+    // Don't override if user is viewing a past auction (viewNounId < currentNounId)
+    setViewNounId((prev) => {
+      if (prev == null) {
+        setDisplayAuction(auction);
+        return currentNounId;
+      }
+      // If viewing current or future auction, update to current
+      if (prev >= currentNounId) {
+        setDisplayAuction(auction);
+        return currentNounId;
+      }
+      // Otherwise, keep the past auction view (don't update displayAuction here)
+      return prev;
+    });
   }, [auction]);
 
   // Fetch past auction data when viewNounId changes
@@ -73,37 +90,54 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
       return;
     }
 
-    // Try to fetch past auction from settlements
+    // Fetch past auction (prefer subgraph, fallback to contract settlements)
     (async () => {
       try {
-        // Try to get settlement data for this nounId
+        // Try subgraph first (matching original component approach)
+        if (isSubgraphConfigured()) {
+          const sg = await fetchAuctionById(viewNounId);
+          if (sg) {
+            setDisplayAuction({
+              nounId: BigInt(sg.id),
+              amount: BigInt(sg.amount),
+              startTime: BigInt(sg.startTime),
+              endTime: BigInt(sg.endTime),
+              bidder: (sg.bidder?.id ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+              settled: Boolean(sg.settled),
+            });
+            return;
+          }
+        }
+
+        // Fallback to contract settlements if subgraph unavailable or no data
         const settlementData = await publicClient.readContract({
           address: CONTRACTS.AUCTION_HOUSE,
           abi: AUCTION_HOUSE_ABI,
           functionName: 'getSettlements',
-          args: [BigInt(viewNounId), BigInt(viewNounId), false],
+          args: [BigInt(viewNounId), BigInt(viewNounId), true],
         });
 
         if (settlementData && Array.isArray(settlementData) && settlementData.length > 0) {
           const settlement = settlementData[0] as any;
           const settlementTime = BigInt(settlement.blockTimestamp);
+          
           setDisplayAuction({
             nounId: BigInt(viewNounId),
             amount: BigInt(settlement.amount),
             startTime: settlementTime,
             endTime: settlementTime,
-            bidder: settlement.winner,
+            bidder: settlement.winner as `0x${string}`,
             settled: true,
           });
         } else {
-          // Fallback: create a placeholder auction
+          // No data found
           setDisplayAuction({
             nounId: BigInt(viewNounId),
             amount: 0n,
             startTime: 0n,
             endTime: 0n,
             bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-            settled: true,
+            settled: false,
           });
         }
       } catch {
@@ -114,7 +148,7 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
           startTime: 0n,
           endTime: 0n,
           bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-          settled: true,
+          settled: false,
         });
       }
     })();
@@ -158,22 +192,24 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
   }, [viewNounId, auction]);
 
   const canGoNext = auction ? (viewNounId ?? 0) < Number(auction.nounId) : false;
+  const canGoPrev = viewNounId != null && viewNounId > 0;
   const isCurrentView = viewNounId === (auction ? Number(auction.nounId) : null);
 
   const dateLabel = useMemo(() => {
     if (!activeAuction || !activeAuction.startTime || activeAuction.startTime === 0n) {
-      return undefined;
+      // Return a placeholder to prevent layout shift
+      return '—';
     }
     const timestamp = Number(activeAuction.startTime) * 1000;
     if (isNaN(timestamp) || timestamp <= 0) {
-      return undefined;
+      return '—';
     }
     try {
       return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
         new Date(timestamp)
       );
     } catch {
-      return undefined;
+      return '—';
     }
   }, [activeAuction]);
 
@@ -329,7 +365,19 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
       }
       if (success) {
         setActionMessage('Auction settled!');
+        // Store the settled auction's nounId before refetch
+        const settledNounId = Number(auction.nounId);
+        
+        // Refetch to get the new auction
         await refetch();
+        
+        // Wait for the new auction data to be available
+        // After settlement, a new auction is created with nounId = settledNounId + 1
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Update viewNounId to show the new auction (the one that was just created)
+        // The new auction will have nounId = settledNounId + 1
+        setViewNounId(settledNounId + 1);
       } else {
         const errorMsg = lastError instanceof Error 
           ? lastError.message 
@@ -374,6 +422,7 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
           onPrev={handlePrev}
           onNext={handleNext}
           canGoNext={canGoNext}
+          currentWalletAddress={address}
         />
 
               {/* Info Cards */}
