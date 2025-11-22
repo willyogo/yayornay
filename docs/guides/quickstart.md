@@ -84,7 +84,7 @@ pnpm lint
 
 ## Next Steps
 
-- Read the [Development Guide](./docs/guides/development.md) for detailed setup
-- Check [Architecture Docs](./docs/architecture/overview.md) to understand the codebase
+- Read the [Development Guide](./development.md) for detailed setup
+- Check [Architecture Docs](../architecture/overview.md) to understand the codebase
 - Explore the auction page to see live contract data
 

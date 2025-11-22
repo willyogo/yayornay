@@ -29,9 +29,8 @@ Creates the `server_wallets` table with:
 
 ### 4. Documentation
 
-- `supabase/functions/README.md` - Edge Functions API reference
 - `docs/architecture/server-wallets-implementation.md` - Implementation guide
-- `DEPLOYMENT.md` - Deployment instructions
+- `docs/guides/deployment.md` - Deployment instructions
 
 ## 🚀 Quick Start
 

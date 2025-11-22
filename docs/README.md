@@ -15,8 +15,19 @@ Core architectural documentation and design decisions.
 ### [Guides](./guides/)
 Step-by-step guides for common tasks.
 
+- **[Quick Start](./guides/quickstart.md)** - Get up and running in 5 minutes
+- **[Installation](./guides/installation.md)** - Dependency installation and setup
 - **[Development Setup](./guides/development.md)** - Local development environment setup
+- **[Testing](./guides/testing.md)** - Testing framework and test suite guide
+- **[Local Testing](./guides/testing-local.md)** - Local testing guide for server wallets
+- **[Server Wallets Setup](./guides/server-wallets-setup.md)** - Complete server wallets implementation guide
+- **[Deployment](./guides/deployment.md)** - Server wallets deployment guide
 - **[Contributing](./guides/contributing.md)** - Contribution guidelines and workflow
+
+### [Integrations](./integrations/)
+Integration setup and implementation guides.
+
+- **[Zora Integration](./integrations/zora.md)** - Zora Coins SDK integration setup
 
 ### [Features](./)
 Feature-specific documentation.
