@@ -8,7 +8,16 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:integration": "vitest run src/test/integration",
+    "test:e2e": "vitest run src/test/e2e",
+    "test:e2e:integration": "vitest run src/test/integration/edgeFunctions.e2e.test.ts",
+    "test:server-wallets": "tsx scripts/test-server-wallets.ts",
+    "test:create-wallet": "tsx scripts/test-create-wallet.ts"
   },
   "dependencies": {
     "@buildeross/sdk": "^0.2.1",
@@ -25,18 +34,26 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/user-event": "^14.5.1",
     "@types/react": "^19.2.6",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/ui": "^1.0.4",
+    "@vitest/coverage-v8": "^1.0.4",
     "autoprefixer": "^10.4.18",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",
     "globals": "^15.9.0",
+    "jsdom": "^23.0.1",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.7.0",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
-    "vite": "^5.4.21"
+    "vite": "^5.4.21",
+    "vitest": "^1.0.4"
   }
 }

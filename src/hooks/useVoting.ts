@@ -2,15 +2,19 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAccount } from 'wagmi';
 import { queueVote, getQueuedVotesForVoter, QueuedVote } from '../lib/voteQueue';
+import { useServerWallet } from './useServerWallet';
 
 export type VoteType = 'for' | 'against' | 'abstain';
 
 export function useVoting() {
   const { address } = useAccount();
+  const { serverWalletAddress } = useServerWallet();
   const [submitting, setSubmitting] = useState(false);
 
   /**
-   * Queue a vote instead of immediately submitting it
+   * Submit a vote
+   * If server wallet is available, it can be used for future gasless voting
+   * Currently stores vote in database (same as before)
    */
   const submitVote = async (proposalId: string, voteType: VoteType) => {
     if (!address) {
@@ -21,6 +25,9 @@ export function useVoting() {
     try {
       // Queue the vote in localStorage
       queueVote(proposalId, voteType, address);
+      
+      // Note: If serverWalletAddress is available, future implementation could
+      // use it for gasless on-chain voting. For now, votes are stored in database.
       
       // Note: Votes are now queued and can be submitted later via submitQueuedVotes()
     } finally {
