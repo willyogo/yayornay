@@ -640,9 +640,6 @@ docs/
     ├── server-wallets.md                    # Original guide
     ├── server-wallets-implementation.md     # Implementation details
     └── server-wallets-system-breakdown.md    # This file
-
-scripts/
-└── test-server-wallets.ts                   # Integration test script
 ```
 
 ---
@@ -700,10 +697,8 @@ supabase start
 # 2. Serve Edge Functions
 supabase functions serve --env-file .env
 
-# 3. Run test script
-./test-wallet-simple.sh
-# or
-npx tsx scripts/test-server-wallets.ts
+# 3. Run tests
+pnpm test
 ```
 
 ### Test Coverage

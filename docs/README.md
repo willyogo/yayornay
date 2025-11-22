@@ -12,19 +12,6 @@ Core architectural documentation and design decisions.
 - **[Data Flow](./architecture/data-flow.md)** - How data moves through the application
 - **[State Management](./architecture/state-management.md)** - State management patterns and strategies
 
-### [Guides](./guides/)
-Step-by-step guides for common tasks.
-
-- **[Quick Start](./guides/quickstart.md)** - Get up and running in 5 minutes
-- **[Installation](./guides/installation.md)** - Dependency installation and setup
-- **[Development Setup](./guides/development.md)** - Local development environment setup
-- **[Testing](./guides/testing.md)** - Testing framework and test suite guide
-- **[Local Testing](./guides/testing-local.md)** - Local testing guide for server wallets
-- **[Server Wallets Setup](./guides/server-wallets-setup.md)** - Complete server wallets implementation guide
-- **[Production Deployment](./guides/production-deployment.md)** - Complete production deployment guide
-- **[Wallet Encryption](./guides/wallet-encryption-setup.md)** - Wallet data encryption setup
-- **[Checking Wallets](./guides/checking-wallets.md)** - How to verify server wallets exist
-- **[Contributing](./guides/contributing.md)** - Contribution guidelines and workflow
 
 ### [Integrations](./integrations/)
 Integration setup and implementation guides.
@@ -60,8 +47,7 @@ Visual architecture diagrams and flowcharts.
 New to the codebase? Start here:
 
 1. Read the [Architecture Overview](./architecture/overview.md)
-2. Set up your [Development Environment](./guides/development.md)
-3. Explore the [Component Architecture](./architecture/components.md)
+2. Explore the [Component Architecture](./architecture/components.md)
 
 ## 📝 Document Conventions
 

@@ -28,7 +28,6 @@
 - `mocks/supabase.ts` - Supabase client mocks
 - `mocks/cdp.ts` - CDP SDK mocks
 - `fixtures/serverWallets.ts` - Test data fixtures
-- `utils/testHelpers.ts` - Helper functions
 
 ## Running Specific Tests
 

@@ -297,13 +297,8 @@ yayornay/
 │   └── migrations/                # Database schema
 │       └── 20251121042518_*.sql
 │
-├── scripts/                        # Utility scripts
-│   ├── seed-proposals.ts          # Test data seeding
-│   └── setup-database.ts          # DB setup
-│
 └── docs/                           # Documentation
     ├── architecture/              # Architecture docs
-    ├── guides/                    # How-to guides
     ├── api/                       # API references
     ├── database/                  # Database docs
     └── diagrams/                  # Visual diagrams
