@@ -121,6 +121,7 @@ function App() {
         <SwipeStack
           proposals={proposals}
           onVote={submitVote}
+          onSubmitCreator={() => setView('submit')}
           testMode={testMode}
         />
       </div>

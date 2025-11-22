@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { X, Heart, MoveUp } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { ProposalCard } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
 import { prefetchZoraCoinData } from '../hooks/useZoraCoin';
+import { getQueuedVotesForVoter } from '../lib/voteQueue';
 
 interface SwipeStackProps {
   proposals: Proposal[];
   onVote: (proposalId: string, voteType: VoteType) => Promise<void>;
+  onSubmitCreator: () => void;
   testMode?: boolean;
 }
 
-export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
+const NEXT_PROPOSAL_DELAY_MS = 12 * 60 * 1000; // 12 minutes
+
+export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -24,8 +29,21 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   const activePointerId = useRef<number | null>(null);
   const activeInputType = useRef<'mouse' | 'touch' | null>(null);
   const animationLock = useRef(false);
+  const [timeUntilNext, setTimeUntilNext] = useState(NEXT_PROPOSAL_DELAY_MS);
+  const { address } = useAccount();
 
-  const currentProposal = proposals[currentIndex];
+  const votedProposalIds = useMemo(() => {
+    if (!address) return new Set<string>();
+    const votes = getQueuedVotesForVoter(address);
+    return new Set(votes.map((vote) => vote.proposalId));
+  }, [address, currentIndex, proposals]);
+
+  const availableProposals = useMemo(
+    () => proposals.filter((proposal) => !votedProposalIds.has(proposal.id)),
+    [proposals, votedProposalIds]
+  );
+
+  const currentProposal = availableProposals[currentIndex];
 
   const resetCardPosition = () => {
     setDragOffset({ x: 0, y: 0 });
@@ -209,21 +227,95 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   // Prefetch the next few proposals' coin data so the cards can render instantly when promoted
   useEffect(() => {
     const idsToPrefetch = [currentIndex + 1, currentIndex + 2, currentIndex + 3]
-      .map((i) => proposals[i]?.creator_username || proposals[i]?.creator_address)
+      .map((i) => availableProposals[i]?.creator_username || availableProposals[i]?.creator_address)
       .filter(Boolean) as string[];
 
     idsToPrefetch.forEach((id) => {
       prefetchZoraCoinData(id);
     });
-  }, [currentIndex, proposals]);
+  }, [currentIndex, availableProposals]);
 
-  if (currentIndex >= proposals.length) {
+  useEffect(() => {
+    if (!availableProposals.length) {
+      setCurrentIndex(0);
+      return;
+    }
+    setCurrentIndex((prev) => Math.min(prev, availableProposals.length - 1));
+  }, [availableProposals.length]);
+
+  const latestProposalStart = useMemo(() => {
+    if (!proposals.length) return null;
+
+    const timestamps = proposals
+      .map((proposal) => {
+        const date = new Date(proposal.vote_start || proposal.created_at || proposal.updated_at);
+        return date.getTime();
+      })
+      .filter((value) => Number.isFinite(value)) as number[];
+
+    if (!timestamps.length) return null;
+    return Math.max(...timestamps);
+  }, [proposals]);
+
+  const nextProposalTimestamp = useMemo(() => {
+    if (!latestProposalStart) {
+      return Date.now() + NEXT_PROPOSAL_DELAY_MS;
+    }
+    return latestProposalStart + NEXT_PROPOSAL_DELAY_MS;
+  }, [latestProposalStart]);
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const remaining = Math.max(nextProposalTimestamp - Date.now(), 0);
+      setTimeUntilNext(remaining);
+    };
+
+    updateCountdown();
+    const intervalId = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [nextProposalTimestamp]);
+
+  const formatTimeRemaining = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60)
+      .toString()
+      .padStart(2, '0');
+    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  };
+
+  if (currentIndex >= availableProposals.length) {
     return (
-      <div className="flex-1 flex items-center justify-center text-center p-8">
-        <div className="space-y-4">
-          <div className="text-6xl">🎉</div>
-          <h2 className="text-3xl font-bold text-gray-900">All caught up!</h2>
-          <p className="text-gray-600">You've voted on all active proposals</p>
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-xl space-y-6 text-center">
+          <div className="space-y-3">
+            <div className="text-6xl">🎉</div>
+            <h2 className="text-3xl font-bold text-gray-900">All caught up!</h2>
+            <p className="text-gray-600">You've voted on all active proposals.</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-3xl shadow-lg p-6 space-y-4 text-center">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Next proposal in</p>
+            <p className="text-4xl font-mono font-semibold text-gray-900">
+              {formatTimeRemaining(timeUntilNext)}
+            </p>
+            <p className="text-xs text-gray-500">
+              A new proposal is submitted every 12 minutes
+            </p>
+
+            {timeUntilNext <= 1000 && (
+              <div className="text-sm text-blue-600 font-medium">
+                Next proposal should appear any moment now.
+              </div>
+            )}
+
+            <button
+              onClick={onSubmitCreator}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-blue-500 text-white font-semibold shadow-md hover:shadow-lg transition-transform hover:scale-[1.01] active:scale-95"
+            >
+              Submit a Creator
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -236,7 +328,7 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   const rotation = Math.max(Math.min(dragOffset.x / 15, 15), -15);
   const supportOpacity = Math.min(1, Math.abs(dragOffset.x) / 140);
   const abstainOpacity = Math.min(1, Math.max(0, -dragOffset.y) / 140);
-  const visibleProposals = proposals.slice(currentIndex, currentIndex + 2);
+  const visibleProposals = availableProposals.slice(currentIndex, currentIndex + 2);
 
   return (
     <div className="flex-1 flex flex-col bg-white">

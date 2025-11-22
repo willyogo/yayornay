@@ -52,6 +52,7 @@ const mockProposals: Proposal[] = testCreators.map((creator, index) => ({
   description: descriptions[index],
   cover_image_url: `https://images.pexels.com/photos/${[1194420, 1763075, 159581, 2102587, 3184291, 3184338, 3184339, 3184360, 3184418, 3184465, 3184611, 3184613, 3184614, 3184634][index]}/pexels-photo.jpeg?auto=compress&cs=tinysrgb&w=800`,
   status: 'active',
+  vote_start: new Date(Date.now() - index * 86400000).toISOString(),
   created_at: new Date(Date.now() - index * 86400000).toISOString(),
   updated_at: new Date(Date.now() - index * 86400000).toISOString()
 }));
@@ -99,6 +100,7 @@ const normalizeSubgraphProposal = (proposal: SubgraphProposal): Proposal => {
     description: proposal.description || null,
     cover_image_url: null,
     status: 'active',
+    vote_start: toIsoFromSeconds(proposal.voteStart),
     created_at: toIsoFromSeconds(proposal.timeCreated),
     updated_at: toIsoFromSeconds(proposal.voteEnd || proposal.expiresAt || proposal.timeCreated),
   };
