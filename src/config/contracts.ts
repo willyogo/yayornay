@@ -106,3 +106,6 @@ export interface Auction {
   settled: boolean;
 }
 
+// Re-export GovernorABI from the SDK
+export { GovernorABI } from '@buildersdk/sdk';
+
