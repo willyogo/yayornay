@@ -23,6 +23,7 @@ Step-by-step guides for common tasks.
 - **[Server Wallets Setup](./guides/server-wallets-setup.md)** - Complete server wallets implementation guide
 - **[Production Deployment](./guides/production-deployment.md)** - Complete production deployment guide
 - **[Wallet Encryption](./guides/wallet-encryption-setup.md)** - Wallet data encryption setup
+- **[Checking Wallets](./guides/checking-wallets.md)** - How to verify server wallets exist
 - **[Contributing](./guides/contributing.md)** - Contribution guidelines and workflow
 
 ### [Integrations](./integrations/)

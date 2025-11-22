@@ -63,6 +63,11 @@ supabase secrets set VITE_SUPABASE_ANON_KEY=your-anon-key
 supabase secrets set VITE_CDP_API_KEY=your-key
 supabase secrets set VITE_CDP_API_SECRET=your-secret
 supabase secrets set WALLET_ENCRYPTION_KEY=your-encryption-key
+
+# Optional: Set network (defaults to base-sepolia for testnet)
+# For local development, leave unset (uses testnet)
+# For production, set to mainnet:
+supabase secrets set CDP_NETWORK_ID=base-mainnet
 ```
 
 **Why**: Supabase Edge Functions automatically have access to:
@@ -80,10 +85,12 @@ So you don't need to set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` unless
 | `VITE_CDP_API_KEY` | ✅ Required | ❌ Not needed | ✅ Required |
 | `VITE_CDP_API_SECRET` | ✅ Required | ❌ Not needed | ✅ Required |
 | `WALLET_ENCRYPTION_KEY` | ✅ Required | ❌ Not needed | ✅ Required |
+| `CDP_NETWORK_ID` | ⚠️ Optional** | ❌ Not needed | ❌ Not needed |
 | `VITE_SUPABASE_URL` | ⚠️ Optional* | ⚠️ Optional* | ⚠️ Optional* |
 | `VITE_SUPABASE_ANON_KEY` | ⚠️ Optional* | ⚠️ Optional* | ⚠️ Optional* |
 
-\* Auto-provided by Supabase, but can be set explicitly
+\* Auto-provided by Supabase, but can be set explicitly  
+\*\* Defaults to `base-sepolia` (testnet) if not set. Set to `base-mainnet` for production.
 
 ---
 

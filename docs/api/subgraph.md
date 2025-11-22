@@ -246,3 +246,4 @@ The `useAuction` hook sets up automatic polling every 15 seconds to refresh auct
 - [Data Flow](../architecture/data-flow.md) - How subgraph data flows through the app
 - [Architecture Overview](../architecture/overview.md) - System architecture
 
+

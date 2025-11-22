@@ -479,3 +479,4 @@ To complete the wallet flow:
 
 The infrastructure is ready - just needs frontend hook implementation to tie it all together!
 
+

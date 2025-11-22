@@ -341,3 +341,4 @@ SELECT wallet_data FROM server_wallets LIMIT 1;
 - [AES-GCM Encryption](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
 - [Supabase Secrets Management](https://supabase.com/docs/guides/functions/secrets)
 
+

@@ -22,3 +22,4 @@ console.log('\n📋 Add this to your .env file:\n')
 console.log(`WALLET_ENCRYPTION_KEY=${base64Key}\n`)
 console.log('⚠️  Keep this key secure and never commit it to git!\n')
 
+

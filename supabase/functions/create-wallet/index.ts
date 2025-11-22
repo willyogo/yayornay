@@ -85,9 +85,12 @@ serve(async (req) => {
       )
     }
 
-    // Create new wallet (defaults to Base Sepolia testnet)
+    // Get network from environment variable (defaults to testnet for local dev)
+    const networkId = Deno.env.get('CDP_NETWORK_ID') || 'base-sepolia'
+    
+    // Create new wallet (defaults to Base Sepolia testnet for local development)
     const wallet = await Wallet.create({
-      networkId: 'base-sepolia',
+      networkId: networkId,
       // For production, use Coinbase-Managed (2-of-2 MPC):
       // walletConfig: { type: 'COINBASE_MANAGED' }
     })
@@ -139,7 +142,7 @@ serve(async (req) => {
         walletData = {
           id: walletId,
           address: serverWalletAddress,
-          networkId: 'base-sepolia',
+          networkId: networkId,
         }
       }
     } catch (err) {
@@ -148,7 +151,7 @@ serve(async (req) => {
       walletData = {
         id: walletId,
         address: serverWalletAddress,
-        networkId: 'base-sepolia',
+        networkId: networkId,
       }
     }
 
@@ -164,7 +167,7 @@ serve(async (req) => {
         server_wallet_id: walletId,
         server_wallet_address: serverWalletAddress,
         wallet_data: encryptedWalletData, // ✅ Encrypted before storage
-        network_id: 'base-sepolia',
+        network_id: networkId,
       })
       .select()
       .single()
