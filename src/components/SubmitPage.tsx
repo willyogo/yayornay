@@ -59,7 +59,8 @@ const FALLBACK_DISPLAY = {
 };
 
 const DEBOUNCE_MS = 400;
-const SUBMISSION_ENDPOINT = import.meta.env?.VITE_SUBMISSION_ENDPOINT;
+const SUBMISSION_ENDPOINT =
+  import.meta.env?.VITE_SUBMISSION_ENDPOINT || 'https://164.152.26.43/api/analyze';
 
 const mockSubmitCreator = async (creator: string): Promise<AnalysisResponse> => {
   // Simulate network latency
@@ -109,15 +110,39 @@ async function submitCreatorAnalysis(creator: string): Promise<AnalysisResponse>
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ creator }),
+      body: JSON.stringify({
+        username: creator.replace(/^@+/, ''),
+        confidenceThreshold: 0.3,
+      }),
     });
 
     if (!response.ok) {
       throw new Error(`Endpoint returned ${response.status}`);
     }
 
-    const data = (await response.json()) as AnalysisResponse;
-    return data;
+    const data = await response.json();
+
+    if (!data?.success || !data?.analysis) {
+      throw new Error('Invalid response from submission endpoint');
+    }
+
+    const analysis = data.analysis as AnalysisResponse;
+
+    return {
+      username: analysis.username,
+      creatorAddress: analysis.creatorAddress || '',
+      coinId: analysis.coinId,
+      symbol: analysis.symbol,
+      name: analysis.name,
+      currentPriceUsd: analysis.currentPriceUsd,
+      volume24hUsd: analysis.volume24hUsd,
+      alreadyHeld: analysis.alreadyHeld ?? false,
+      reason: analysis.reason,
+      confidenceScore: analysis.confidenceScore,
+      suggestedAllocationUsd: analysis.suggestedAllocationUsd ?? null,
+      proposalSubmitted: Boolean(analysis.proposalSubmitted),
+      proposal: analysis.proposal,
+    };
   } catch (err) {
     console.warn('Submission endpoint unavailable, using mock', err);
     return mockSubmitCreator(creator);
