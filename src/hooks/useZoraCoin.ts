@@ -61,9 +61,11 @@ export async function prefetchZoraCoinData(creatorIdentifier: string | null) {
 }
 
 export function useZoraCoin(creatorIdentifier: string | null) {
-  const [coinData, setCoinData] = useState<ZoraCoinData | null>(null);
-  const [contentCoins, setContentCoins] = useState<ContentCoin[]>([]);
-  const [loading, setLoading] = useState(false);
+  const initialCache = creatorIdentifier ? coinCache.get(creatorIdentifier) : undefined;
+
+  const [coinData, setCoinData] = useState<ZoraCoinData | null>(initialCache?.coinData ?? null);
+  const [contentCoins, setContentCoins] = useState<ContentCoin[]>(initialCache?.contentCoins ?? []);
+  const [loading, setLoading] = useState(() => !!creatorIdentifier && !initialCache);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,15 +77,26 @@ export function useZoraCoin(creatorIdentifier: string | null) {
     }
 
     let mounted = true;
+    const cached = coinCache.get(creatorIdentifier);
 
-    // Clear any previous creator's data so stale details don't flash while the new fetch runs
-    setCoinData(null);
-    setContentCoins([]);
+    // If we already have data cached for this creator, reuse it immediately and skip the spinner
+    if (cached) {
+      setCoinData(cached.coinData);
+      setContentCoins(cached.contentCoins);
+      setLoading(false);
+    } else {
+      // Otherwise clear and show loading while we fetch fresh data
+      setCoinData(null);
+      setContentCoins([]);
+      setLoading(true);
+    }
+
     setError(null);
 
     async function loadCoinData() {
       if (!creatorIdentifier) return;
-      setLoading(true);
+      const hasCachedData = !!coinCache.get(creatorIdentifier);
+      setLoading(!hasCachedData);
       setError(null);
 
       try {
@@ -108,14 +121,6 @@ export function useZoraCoin(creatorIdentifier: string | null) {
           setLoading(false);
         }
       }
-    }
-
-    // Serve cached data immediately if we have it, then ensure fresh data is loaded in background
-    const cached = coinCache.get(creatorIdentifier);
-    if (cached) {
-      setCoinData(cached.coinData);
-      setContentCoins(cached.contentCoins);
-      setLoading(false);
     }
 
     loadCoinData();

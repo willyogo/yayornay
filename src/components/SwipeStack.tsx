@@ -237,87 +237,91 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
   const rotation = Math.max(Math.min(dragOffset.x / 15, 15), -15);
   const supportOpacity = Math.min(1, Math.abs(dragOffset.x) / 140);
   const abstainOpacity = Math.min(1, Math.max(0, -dragOffset.y) / 140);
+  const visibleProposals = proposals.slice(currentIndex, currentIndex + 2);
 
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 relative max-w-md w-full mx-auto p-4 min-h-[520px]">
-        <div
-          ref={cardRef}
-          className="relative z-10 w-full h-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing"
-          style={{
-            transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`,
-            transition:
-              isDragging || !transitionEnabled
-                ? 'none'
-                : 'transform 0.35s cubic-bezier(.22,.61,.36,1)',
-            pointerEvents: isAnimatingOut ? 'none' : 'auto',
-          }}
-          draggable={false}
-          onDragStart={(e) => e.preventDefault()}
-          onMouseDown={(e) => {
-            if (e.button !== 0) return;
-            handleDragStart(e.clientX, e.clientY, -1, 'mouse');
-          }}
-          onTouchStart={(e) => {
-            const touch = e.touches[0];
-            if (!touch) return;
-            handleDragStart(touch.clientX, touch.clientY, touch.identifier ?? 0, 'touch');
-          }}
-        >
-          <div className="card-content relative w-full h-full cursor-grab active:cursor-grabbing">
-            <ProposalCard
-              key={currentProposal.id}
-              proposal={currentProposal}
-              onDetailClick={() => onDetailClick(currentProposal)}
-            />
-          </div>
+        {visibleProposals.map((proposal, idx) => {
+          const isTopCard = idx === 0;
+          const transform = isTopCard
+            ? `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`
+            : isPromotingNext
+              ? 'scale(0.985) translateY(-2px)'
+              : 'scale(0.95) translateY(10px)';
+          const transition = isTopCard
+            ? isDragging || !transitionEnabled
+              ? 'none'
+              : 'transform 0.35s cubic-bezier(.22,.61,.36,1)'
+            : 'transform 220ms cubic-bezier(.22,.61,.36,1), opacity 220ms ease';
 
-          {dragOffset.x > 40 && (
+          return (
             <div
-              className="absolute top-8 right-8 bg-green-500 text-white px-6 py-3 rounded-full font-bold text-xl rotate-12 shadow-xl"
-              style={{ opacity: activeVote === 'for' ? 1 : supportOpacity }}
+              key={proposal.id}
+              ref={isTopCard ? cardRef : undefined}
+              className={`absolute inset-0 ${isTopCard ? 'z-10 w-full h-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing' : 'z-0 m-4 pointer-events-none'}`}
+              style={{
+                transform,
+                transition,
+                opacity: isTopCard ? 1 : isPromotingNext ? 0.85 : 0.5,
+                pointerEvents: isTopCard && !isAnimatingOut ? 'auto' : 'none',
+              }}
+              draggable={false}
+              onDragStart={isTopCard ? (e) => e.preventDefault() : undefined}
+              onMouseDown={
+                isTopCard
+                  ? (e) => {
+                      if (e.button !== 0) return;
+                      handleDragStart(e.clientX, e.clientY, -1, 'mouse');
+                    }
+                  : undefined
+              }
+              onTouchStart={
+                isTopCard
+                  ? (e) => {
+                      const touch = e.touches[0];
+                      if (!touch) return;
+                      handleDragStart(touch.clientX, touch.clientY, touch.identifier ?? 0, 'touch');
+                    }
+                  : undefined
+              }
             >
-              SUPPORT
-            </div>
-          )}
+              <div className="card-content relative w-full h-full cursor-grab active:cursor-grabbing">
+                <ProposalCard
+                  proposal={proposal}
+                  onDetailClick={() => onDetailClick(proposal)}
+                />
+              </div>
 
-          {dragOffset.x < -40 && (
-            <div
-              className="absolute top-8 left-8 bg-red-500 text-white px-6 py-3 rounded-full font-bold text-xl -rotate-12 shadow-xl"
-              style={{ opacity: activeVote === 'against' ? 1 : supportOpacity }}
-            >
-              PASS
-            </div>
-          )}
+              {isTopCard && dragOffset.x > 40 && (
+                <div
+                  className="absolute top-8 right-8 bg-green-500 text-white px-6 py-3 rounded-full font-bold text-xl rotate-12 shadow-xl"
+                  style={{ opacity: activeVote === 'for' ? 1 : supportOpacity }}
+                >
+                  SUPPORT
+                </div>
+              )}
 
-          {dragOffset.y < -40 && (
-            <div
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-white px-6 py-3 rounded-full font-bold text-xl shadow-xl"
-              style={{ opacity: activeVote === 'abstain' ? 1 : abstainOpacity }}
-            >
-              ABSTAIN
-            </div>
-          )}
-        </div>
+              {isTopCard && dragOffset.x < -40 && (
+                <div
+                  className="absolute top-8 left-8 bg-red-500 text-white px-6 py-3 rounded-full font-bold text-xl -rotate-12 shadow-xl"
+                  style={{ opacity: activeVote === 'against' ? 1 : supportOpacity }}
+                >
+                  PASS
+                </div>
+              )}
 
-        {proposals[currentIndex + 1] && (
-          <div
-            className="absolute inset-0 m-4 pointer-events-none z-0"
-            style={{
-              transform: isPromotingNext
-                ? 'scale(0.985) translateY(-2px)'
-                : 'scale(0.95) translateY(10px)',
-              opacity: isPromotingNext ? 0.85 : 0.5,
-              transition: 'transform 220ms cubic-bezier(.22,.61,.36,1), opacity 220ms ease',
-            }}
-          >
-            <ProposalCard
-              key={proposals[currentIndex + 1].id}
-              proposal={proposals[currentIndex + 1]}
-              onDetailClick={() => {}}
-            />
-          </div>
-        )}
+              {isTopCard && dragOffset.y < -40 && (
+                <div
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-white px-6 py-3 rounded-full font-bold text-xl shadow-xl"
+                  style={{ opacity: activeVote === 'abstain' ? 1 : abstainOpacity }}
+                >
+                  ABSTAIN
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex justify-center items-center gap-6 p-8 bg-white">
