@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Heart, MoveUp } from 'lucide-react';
+import { X, Heart, MoveUp, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { ProposalCard } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
@@ -19,6 +19,8 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   const [transitionEnabled, setTransitionEnabled] = useState(true);
   const [isPromotingNext, setIsPromotingNext] = useState(false);
   const [activeVote, setActiveVote] = useState<VoteType | null>(null);
+  const [voteStatus, setVoteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [voteError, setVoteError] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const startPos = useRef({ x: 0, y: 0 });
   const activePointerId = useRef<number | null>(null);
@@ -57,12 +59,18 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
     setIsPromotingNext(true);
     setActiveVote(voteType);
     setDragOffset(getFlyOutOffset(voteType));
+    setVoteStatus('submitting');
+    setVoteError(null);
 
     if (!testMode) {
       try {
         await onVote(currentProposal.id, voteType);
+        setVoteStatus('success');
       } catch (error) {
         console.error('Vote error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to submit vote';
+        setVoteError(errorMessage);
+        setVoteStatus('error');
         animationLock.current = false;
         setIsAnimatingOut(false);
         setIsPromotingNext(false);
@@ -77,6 +85,8 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
       resetCardPosition();
       setIsAnimatingOut(false);
       setIsPromotingNext(false);
+      setVoteStatus('idle');
+      setVoteError(null);
       animationLock.current = false;
       requestAnimationFrame(() => {
         setTransitionEnabled(true);
@@ -320,27 +330,61 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
         })}
       </div>
 
-      <div className="flex justify-center items-center gap-6 p-8">
-        <button
-          onClick={() => handleVote('against')}
-          className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-        >
-          <X className="w-8 h-8 text-red-600" />
-        </button>
+      <div className="flex flex-col items-center gap-4 p-8">
+        {/* Vote Status Indicator */}
+        {voteStatus !== 'idle' && (
+          <div className={`rounded-xl px-4 py-2 flex items-center gap-2 text-sm font-medium ${
+            voteStatus === 'submitting' ? 'bg-blue-50 text-blue-700' :
+            voteStatus === 'success' ? 'bg-green-50 text-green-700' :
+            'bg-red-50 text-red-700'
+          }`}>
+            {voteStatus === 'submitting' && (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Submitting vote on-chain...
+              </>
+            )}
+            {voteStatus === 'success' && (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                Vote confirmed!
+              </>
+            )}
+            {voteStatus === 'error' && (
+              <>
+                <AlertCircle className="w-4 h-4" />
+                {voteError || 'Failed to submit vote'}
+              </>
+            )}
+          </div>
+        )}
 
-        <button
-          onClick={() => handleVote('abstain')}
-          className="w-14 h-14 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-        >
-          <MoveUp className="w-6 h-6 text-blue-600" />
-        </button>
+        {/* Vote Buttons */}
+        <div className="flex justify-center items-center gap-6">
+          <button
+            onClick={() => handleVote('against')}
+            disabled={voteStatus === 'submitting'}
+            className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            <X className="w-8 h-8 text-red-600" />
+          </button>
 
-        <button
-          onClick={() => handleVote('for')}
-          className="w-16 h-16 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-        >
-          <Heart className="w-8 h-8 text-green-600" fill="currentColor" />
-        </button>
+          <button
+            onClick={() => handleVote('abstain')}
+            disabled={voteStatus === 'submitting'}
+            className="w-14 h-14 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            <MoveUp className="w-6 h-6 text-blue-600" />
+          </button>
+
+          <button
+            onClick={() => handleVote('for')}
+            disabled={voteStatus === 'submitting'}
+            className="w-16 h-16 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            <Heart className="w-8 h-8 text-green-600" fill="currentColor" />
+          </button>
+        </div>
       </div>
     </div>
   );
