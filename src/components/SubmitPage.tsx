@@ -18,6 +18,7 @@ import { AppHeader } from './AppHeader';
 import { AppView } from '../types/view';
 import { useZoraCoin } from '../hooks/useZoraCoin';
 import { calculate24hChange, formatCurrency } from '../lib/zora';
+import { StatsGrid } from './StatsGrid';
 
 interface SubmitPageProps {
   onSelectView: (view: AppView) => void;
@@ -381,56 +382,13 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                       </div>
 
                       <div className="px-6 pb-6 space-y-3">
-                        <div className="grid grid-cols-2 gap-2.5">
-                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-2.5 border border-blue-200/50">
-                            <div className="flex items-center gap-1.5 text-blue-700 text-[10px] mb-0.5 font-medium">
-                              <DollarSign className="w-3 h-3" />
-                              Market Cap
-                            </div>
-                            <div className="text-base font-bold text-gray-900">
-                              {displayData.marketCap}
-                            </div>
-                          </div>
-
-                          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-2.5 border border-purple-200/50">
-                            <div className="flex items-center gap-1.5 text-purple-700 text-[10px] mb-0.5 font-medium">
-                              <TrendingUp className="w-3 h-3" />
-                              24h Volume
-                            </div>
-                            <div className="text-base font-bold text-gray-900">
-                              {displayData.volume24h}
-                            </div>
-                          </div>
-
-                          <div
-                            className={`rounded-xl p-2.5 col-span-2 border ${
-                              changeIsPositive
-                                ? 'bg-gradient-to-br from-green-50 to-emerald-100 border-green-200/50'
-                                : 'bg-gradient-to-br from-red-50 to-rose-100 border-red-200/50'
-                            }`}
-                          >
-                            <div
-                              className={`flex items-center gap-1.5 text-[10px] mb-0.5 font-medium ${
-                                changeIsPositive ? 'text-green-700' : 'text-red-700'
-                              }`}
-                            >
-                              {changeIsPositive ? (
-                                <TrendingUp className="w-3 h-3" />
-                              ) : (
-                                <TrendingDown className="w-3 h-3" />
-                              )}
-                              24h Change
-                            </div>
-                            <div
-                              className={`text-base font-bold ${
-                                changeIsPositive ? 'text-green-600' : 'text-red-600'
-                              }`}
-                            >
-                              {changeIsPositive ? '+' : ''}
-                              {displayData.change24h.toFixed(2)}%
-                            </div>
-                          </div>
-                        </div>
+                        <StatsGrid
+                          marketCap={displayData.marketCap}
+                          holders={displayData.holders}
+                          volume24h={displayData.volume24h}
+                          change24h={displayData.change24h}
+                          variant="compact"
+                        />
                       </div>
                     </>
                   ) : (
