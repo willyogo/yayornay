@@ -240,7 +240,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
   const visibleProposals = proposals.slice(currentIndex, currentIndex + 2);
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col bg-white">
       <div className="flex-1 relative max-w-md w-full mx-auto p-4 min-h-[520px]">
         {visibleProposals.map((proposal, idx) => {
           const isTopCard = idx === 0;
@@ -324,7 +324,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
         })}
       </div>
 
-      <div className="flex justify-center items-center gap-6 p-8 bg-white">
+      <div className="flex justify-center items-center gap-6 p-8">
         <button
           onClick={() => handleVote('against')}
           className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
