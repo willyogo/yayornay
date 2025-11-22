@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Proposal } from '../lib/supabase';
 import { DAO_ADDRESS } from '../config/constants';
-import { fetchActiveProposalsFromSubgraph, SubgraphProposal } from '../lib/yaynaySubgraph';
+import { fetchActiveProposalsFromSubgraph, fetchUnvotedProposalsForUser, SubgraphProposal } from '../lib/yaynaySubgraph';
 
 const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['']s creator coin/i;
 const TITLE_CREATOR_REGEX = /purchase\s+([a-zA-Z0-9._-]+)['']s creator coin/i;
 const HANDLE_REGEX = /@([a-zA-Z0-9._-]+)/;
+const COIN_ADDRESS_REGEX = /address:\s*(0x[a-fA-F0-9]{40})/i;
+const COIN_SYMBOL_REGEX = /symbol:\s*([a-zA-Z0-9._-]+)/i;
+const ETH_AMOUNT_REGEX = /eth amount:\s*([0-9]*\.?[0-9]+\s*(?:eth)?)/i;
+const SUMMARY_PURCHASE_REGEX = /purchase\s+([0-9]*\.?[0-9]+)\s*eth[^a-zA-Z0-9]+(?:worth\s+of\s+)?([a-zA-Z0-9._-]+)/i;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 const testCreators = [
@@ -48,10 +52,11 @@ const mockProposals: Proposal[] = testCreators.map((creator, index) => ({
   proposal_id: `test-${index + 1}`,
   creator_address: `0x${Math.random().toString(16).slice(2, 42).padEnd(40, '0')}`,
   creator_username: creator,
-  title: `Should the DAO purchase ${creator} creator coin?`,
+  title: `Should the DAO purchase 1 ETH of $${creator.replace('@', '')}?`,
   description: descriptions[index],
   cover_image_url: `https://images.pexels.com/photos/${[1194420, 1763075, 159581, 2102587, 3184291, 3184338, 3184339, 3184360, 3184418, 3184465, 3184611, 3184613, 3184614, 3184634][index]}/pexels-photo.jpeg?auto=compress&cs=tinysrgb&w=800`,
   status: 'active',
+  vote_start: new Date(Date.now() - index * 86400000).toISOString(),
   created_at: new Date(Date.now() - index * 86400000).toISOString(),
   updated_at: new Date(Date.now() - index * 86400000).toISOString()
 }));
@@ -75,39 +80,97 @@ const buildProposalId = (proposal: SubgraphProposal) => {
   return `proposal-${proposal.proposer}-${proposal.voteStart}`;
 };
 
-const extractCreatorHandle = (proposal: SubgraphProposal) => {
+type ParsedProposalMetadata = {
+  coinAddress: string | null;
+  symbol: string | null;
+  ethAmount: string | null;
+};
+
+const formatEthAmount = (raw?: string | null) => {
+  if (!raw) return null;
+  const cleaned = raw.trim();
+  const withoutUnit = cleaned.replace(/\s*eth$/i, '').trim();
+  const amount = withoutUnit || cleaned;
+  return `${amount} ETH`;
+};
+
+const parseProposalMetadata = (proposal: SubgraphProposal): ParsedProposalMetadata => {
+  const description = proposal.description || '';
+  const title = proposal.title || '';
+
+  const addressMatch = description.match(COIN_ADDRESS_REGEX)?.[1];
+  const symbolMatch =
+    description.match(COIN_SYMBOL_REGEX)?.[1] ||
+    title.match(TITLE_CREATOR_REGEX)?.[1] ||
+    null;
+
+  const ethAmountMatch =
+    description.match(ETH_AMOUNT_REGEX)?.[1] ||
+    title.match(ETH_AMOUNT_REGEX)?.[1] ||
+    null;
+
+  const summaryMatch =
+    description.match(SUMMARY_PURCHASE_REGEX) || title.match(SUMMARY_PURCHASE_REGEX);
+
+  const fallbackSymbol = summaryMatch?.[2] || null;
+  const fallbackEthAmount = summaryMatch?.[1] || null;
+
+  return {
+    coinAddress: addressMatch ? addressMatch.toLowerCase() : null,
+    symbol: (symbolMatch || fallbackSymbol)?.trim() || null,
+    ethAmount: formatEthAmount(ethAmountMatch || fallbackEthAmount),
+  };
+};
+
+const extractCreatorHandle = (proposal: SubgraphProposal, parsed: ParsedProposalMetadata) => {
   const title = proposal.title || '';
   const descriptionHandle = proposal.description?.match(HANDLE_REGEX)?.[1];
   const titleHandle = title.match(TITLE_CREATOR_REGEX)?.[1];
-  const handle = descriptionHandle || (PURCHASE_TITLE_REGEX.test(title) ? titleHandle : null);
+  const handle =
+    descriptionHandle ||
+    (PURCHASE_TITLE_REGEX.test(title) ? titleHandle : null) ||
+    parsed.symbol;
 
   if (!handle) return null;
-  return handle.startsWith('@') ? handle : `@${handle}`;
+  if (handle.startsWith('@') || handle.startsWith('0x')) return handle;
+  return `@${handle}`;
 };
 
 const normalizeSubgraphProposal = (proposal: SubgraphProposal): Proposal => {
-  const creatorHandle = extractCreatorHandle(proposal);
+  const parsed = parseProposalMetadata(proposal);
+  const creatorHandle = extractCreatorHandle(proposal, parsed);
   const proposalId = buildProposalId(proposal);
+  const symbolForTitle =
+    parsed.symbol ||
+    (creatorHandle && !creatorHandle.startsWith('0x')
+      ? creatorHandle.replace(/^@/, '')
+      : null);
+  const computedTitle =
+    parsed.ethAmount && symbolForTitle
+      ? `Should the DAO purchase ${parsed.ethAmount} of $${symbolForTitle}?`
+      : proposal.title || `Proposal #${proposal.proposalNumber ?? proposalId}`;
 
   return {
     id: proposalId,
     dao_address: (proposal.dao?.governorAddress || DAO_ADDRESS).toLowerCase(),
     proposal_id: proposal.proposalId || proposalId,
-    creator_address: (proposal.proposer || ZERO_ADDRESS).toLowerCase(),
+    creator_address: (parsed.coinAddress || proposal.proposer || ZERO_ADDRESS).toLowerCase(),
     creator_username: creatorHandle,
-    title: proposal.title || `Proposal #${proposal.proposalNumber ?? proposalId}`,
+    title: computedTitle,
     description: proposal.description || null,
     cover_image_url: null,
     status: 'active',
+    vote_start: toIsoFromSeconds(proposal.voteStart),
     created_at: toIsoFromSeconds(proposal.timeCreated),
     updated_at: toIsoFromSeconds(proposal.voteEnd || proposal.expiresAt || proposal.timeCreated),
   };
 };
 
-export function useProposals(testMode: boolean = false) {
+export function useProposals(testMode: boolean = false, userAddress?: string) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   useEffect(() => {
     let isActive = true;
@@ -117,9 +180,17 @@ export function useProposals(testMode: boolean = false) {
       setError(null);
 
       try {
-        // Always try to query from subgraph first
-        const subgraphProposals = await fetchActiveProposalsFromSubgraph();
-        
+        // Fetch proposals based on whether we have a user address
+        let subgraphProposals: SubgraphProposal[];
+
+        if (userAddress) {
+          // Fetch only proposals the user hasn't voted on
+          subgraphProposals = await fetchUnvotedProposalsForUser(userAddress);
+        } else {
+          // Fetch all active proposals
+          subgraphProposals = await fetchActiveProposalsFromSubgraph();
+        }
+
         if (isActive) {
           if (subgraphProposals.length > 0) {
             // Use proposals from subgraph
@@ -154,7 +225,11 @@ export function useProposals(testMode: boolean = false) {
     return () => {
       isActive = false;
     };
-  }, [testMode]);
+  }, [testMode, userAddress, refetchTrigger]);
 
-  return { proposals, loading, error };
+  const refetch = () => {
+    setRefetchTrigger((prev) => prev + 1);
+  };
+
+  return { proposals, loading, error, refetch };
 }

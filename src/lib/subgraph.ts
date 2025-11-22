@@ -1,13 +1,26 @@
 // Subgraph utilities for fetching Builder DAO auction data
 // Configure via VITE_BUILDER_DAO_SUBGRAPH_URL environment variable
 
+import { DAO_ADDRESS } from '../config/constants';
+
+// Default to the Goldsky public endpoint for Base Sepolia Builder DAO
+const DEFAULT_SUBGRAPH_URL =
+  'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-sepolia/dev/gn';
+
 export type SubgraphAuction = {
   id: string; // nounId
-  amount: string;
   startTime: string;
   endTime: string;
   settled: boolean;
-  bidder?: { id: string } | null;
+  // Builder DAO subgraph uses nested bid objects instead of direct fields
+  highestBid?: {
+    amount: string;
+    bidder: string;
+  } | null;
+  winningBid?: {
+    amount: string;
+    bidder: string;
+  } | null;
 };
 
 const getSubgraphEndpoint = (): string | null => {
@@ -15,13 +28,13 @@ const getSubgraphEndpoint = (): string | null => {
   const url =
     import.meta.env.VITE_BUILDER_DAO_SUBGRAPH_URL ||
     import.meta.env.VITE_SUBGRAPH_URL;
-  return url || null;
+  return url || DEFAULT_SUBGRAPH_URL;
 };
 
 async function gql<T>(query: string, variables?: Record<string, any>): Promise<T> {
   const endpoint = getSubgraphEndpoint();
   if (!endpoint) {
-    throw new Error('Subgraph endpoint not configured. Set VITE_BUILDER_DAO_SUBGRAPH_URL');
+    throw new Error('Subgraph endpoint not configured');
   }
 
   const res = await fetch(endpoint, {
@@ -50,19 +63,47 @@ export async function fetchLatestAuction(): Promise<SubgraphAuction | null> {
   try {
     const data = await gql<{ auctions: SubgraphAuction[] }>(
       `query LatestAuction {
-        auctions(first: 1, orderBy: startTime, orderDirection: desc) {
+        auctions(first: 1, orderBy: startTime, orderDirection: desc, where: {settled: false}) {
           id
-          amount
           startTime
           endTime
           settled
-          bidder {
-            id
+          highestBid {
+            amount
+            bidder
+          }
+          winningBid {
+            amount
+            bidder
           }
         }
       }`
     );
-    return data.auctions?.[0] ?? null;
+    
+    // If no active auction, get the latest settled one
+    if (!data.auctions || data.auctions.length === 0) {
+      const settledData = await gql<{ auctions: SubgraphAuction[] }>(
+        `query LatestSettledAuction {
+          auctions(first: 1, orderBy: startTime, orderDirection: desc, where: {settled: true}) {
+            id
+            startTime
+            endTime
+            settled
+            highestBid {
+              amount
+              bidder
+            }
+            winningBid {
+              amount
+              bidder
+            }
+          }
+        }`
+      );
+      return settledData.auctions?.[0] ?? null;
+    }
+    
+    return data.auctions[0];
   } catch (error) {
     console.warn('Failed to fetch latest auction from subgraph:', error);
     return null;
@@ -76,21 +117,28 @@ export async function fetchAuctionById(
   nounId: bigint | number | string
 ): Promise<SubgraphAuction | null> {
   try {
-    const id = typeof nounId === 'string' ? nounId : String(nounId);
+    // Builder DAO subgraph uses compound IDs: "daoAddress:tokenId"
+    const tokenId = typeof nounId === 'string' ? nounId : String(nounId);
+    const compoundId = `${DAO_ADDRESS.toLowerCase()}:${tokenId}`;
+    
     const data = await gql<{ auctions: SubgraphAuction[] }>(
       `query AuctionById($id: ID!) {
         auctions(where: { id: $id }) {
           id
-          amount
           startTime
           endTime
           settled
-          bidder {
-            id
+          highestBid {
+            amount
+            bidder
+          }
+          winningBid {
+            amount
+            bidder
           }
         }
       }`,
-      { id }
+      { id: compoundId }
     );
     return data.auctions?.[0] ?? null;
   } catch (error) {

@@ -100,3 +100,6 @@ export interface Auction {
   settled: boolean;
 }
 
+// Re-export governorAbi from the SDK as GovernorABI for backward compatibility
+export { governorAbi as GovernorABI } from '@buildeross/sdk';
+

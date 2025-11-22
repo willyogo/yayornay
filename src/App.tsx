@@ -8,6 +8,7 @@ import { useProposals } from './hooks/useProposals';
 import { useVoting } from './hooks/useVoting';
 import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
+import { DirectProposalPage } from './components/DirectProposalPage';
 import { AppView } from './types/view';
 
 // Get test mode from URL query parameter
@@ -30,8 +31,18 @@ function App() {
   const { isConnected, address } = useAccount();
   const [testMode] = useState(() => getTestModeFromURL());
   const [view, setView] = useState<AppView>('landing');
-  const { proposals, loading } = useProposals(testMode);
+  // Pass user address to only fetch proposals they haven't voted on
+  const { proposals, loading, refetch } = useProposals(testMode, address);
   const { submitVote } = useVoting();
+
+  // Wrap submitVote to refetch proposals after voting
+  const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
+    await submitVote(proposalId, voteType);
+    // Refetch proposals after successful vote
+    // Note: There might be a delay before the subgraph indexes the vote,
+    // but the UI will remove the card anyway via the swipe animation
+    setTimeout(() => refetch(), 2000);
+  };
   
   // Track the view before connecting to return to it after login
   const previousViewRef = useRef<AppView | null>(null);
@@ -54,7 +65,8 @@ function App() {
     // Only run when transitioning from disconnected to connected
     if (isConnected && !wasConnectedRef.current && address) {
       wasConnectedRef.current = true;
-      
+      console.log('User wallet connected:', address);
+
       // Return user to the page they were on before connecting
       // If they were on auction page, keep them there
       // Otherwise, go to landing page (which shows voting interface)
@@ -75,6 +87,8 @@ function App() {
           <AuctionPage onSelectView={setView} currentView={view} />
         ) : view === 'submit' ? (
           <SubmitPage onSelectView={setView} currentView={view} />
+        ) : view === 'propose' ? (
+          <DirectProposalPage onSelectView={setView} currentView={view} />
         ) : (
           <LandingPage onBecomeVoter={() => setView('auction')} />
         )}
@@ -113,6 +127,14 @@ function App() {
     );
   }
 
+  if (view === 'propose') {
+    return (
+      <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
+        <DirectProposalPage onSelectView={setView} currentView={view} />
+      </TestModeContext.Provider>
+    );
+  }
+
   return (
     <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -120,7 +142,8 @@ function App() {
 
         <SwipeStack
           proposals={proposals}
-          onVote={submitVote}
+          onVote={handleVote}
+          onSubmitCreator={() => setView('submit')}
           testMode={testMode}
         />
       </div>

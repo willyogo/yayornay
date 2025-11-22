@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
-import { X, Heart, MoveUp } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAccount } from 'wagmi';
+import { X, Heart, MoveUp, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { ProposalCard } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
 import { prefetchZoraCoinData } from '../hooks/useZoraCoin';
+import { getQueuedVotesForVoter } from '../lib/voteQueue';
 
 interface SwipeStackProps {
   proposals: Proposal[];
   onVote: (proposalId: string, voteType: VoteType) => Promise<void>;
+  onSubmitCreator: () => void;
   testMode?: boolean;
 }
 
-export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
+const NEXT_PROPOSAL_DELAY_MS = 12 * 60 * 1000; // 12 minutes
+
+export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -19,13 +24,28 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   const [transitionEnabled, setTransitionEnabled] = useState(true);
   const [isPromotingNext, setIsPromotingNext] = useState(false);
   const [activeVote, setActiveVote] = useState<VoteType | null>(null);
+  const [voteStatus, setVoteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [voteError, setVoteError] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const startPos = useRef({ x: 0, y: 0 });
   const activePointerId = useRef<number | null>(null);
   const activeInputType = useRef<'mouse' | 'touch' | null>(null);
   const animationLock = useRef(false);
+  const [timeUntilNext, setTimeUntilNext] = useState(NEXT_PROPOSAL_DELAY_MS);
+  const { address } = useAccount();
 
-  const currentProposal = proposals[currentIndex];
+  const votedProposalIds = useMemo(() => {
+    if (!address) return new Set<string>();
+    const votes = getQueuedVotesForVoter(address);
+    return new Set(votes.map((vote) => vote.proposalId));
+  }, [address, currentIndex, proposals]);
+
+  const availableProposals = useMemo(
+    () => proposals.filter((proposal) => !votedProposalIds.has(proposal.id)),
+    [proposals, votedProposalIds]
+  );
+
+  const currentProposal = availableProposals[currentIndex];
 
   const resetCardPosition = () => {
     setDragOffset({ x: 0, y: 0 });
@@ -57,12 +77,18 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
     setIsPromotingNext(true);
     setActiveVote(voteType);
     setDragOffset(getFlyOutOffset(voteType));
+    setVoteStatus('submitting');
+    setVoteError(null);
 
     if (!testMode) {
       try {
         await onVote(currentProposal.id, voteType);
+        setVoteStatus('success');
       } catch (error) {
         console.error('Vote error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to submit vote';
+        setVoteError(errorMessage);
+        setVoteStatus('error');
         animationLock.current = false;
         setIsAnimatingOut(false);
         setIsPromotingNext(false);
@@ -77,6 +103,8 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
       resetCardPosition();
       setIsAnimatingOut(false);
       setIsPromotingNext(false);
+      setVoteStatus('idle');
+      setVoteError(null);
       animationLock.current = false;
       requestAnimationFrame(() => {
         setTransitionEnabled(true);
@@ -209,21 +237,95 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   // Prefetch the next few proposals' coin data so the cards can render instantly when promoted
   useEffect(() => {
     const idsToPrefetch = [currentIndex + 1, currentIndex + 2, currentIndex + 3]
-      .map((i) => proposals[i]?.creator_username || proposals[i]?.creator_address)
+      .map((i) => availableProposals[i]?.creator_username || availableProposals[i]?.creator_address)
       .filter(Boolean) as string[];
 
     idsToPrefetch.forEach((id) => {
       prefetchZoraCoinData(id);
     });
-  }, [currentIndex, proposals]);
+  }, [currentIndex, availableProposals]);
 
-  if (currentIndex >= proposals.length) {
+  useEffect(() => {
+    if (!availableProposals.length) {
+      setCurrentIndex(0);
+      return;
+    }
+    setCurrentIndex((prev) => Math.min(prev, availableProposals.length - 1));
+  }, [availableProposals.length]);
+
+  const latestProposalStart = useMemo(() => {
+    if (!proposals.length) return null;
+
+    const timestamps = proposals
+      .map((proposal) => {
+        const date = new Date(proposal.vote_start || proposal.created_at || proposal.updated_at);
+        return date.getTime();
+      })
+      .filter((value) => Number.isFinite(value)) as number[];
+
+    if (!timestamps.length) return null;
+    return Math.max(...timestamps);
+  }, [proposals]);
+
+  const nextProposalTimestamp = useMemo(() => {
+    if (!latestProposalStart) {
+      return Date.now() + NEXT_PROPOSAL_DELAY_MS;
+    }
+    return latestProposalStart + NEXT_PROPOSAL_DELAY_MS;
+  }, [latestProposalStart]);
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const remaining = Math.max(nextProposalTimestamp - Date.now(), 0);
+      setTimeUntilNext(remaining);
+    };
+
+    updateCountdown();
+    const intervalId = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [nextProposalTimestamp]);
+
+  const formatTimeRemaining = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60)
+      .toString()
+      .padStart(2, '0');
+    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  };
+
+  if (currentIndex >= availableProposals.length) {
     return (
-      <div className="flex-1 flex items-center justify-center text-center p-8">
-        <div className="space-y-4">
-          <div className="text-6xl">🎉</div>
-          <h2 className="text-3xl font-bold text-gray-900">All caught up!</h2>
-          <p className="text-gray-600">You've voted on all active proposals</p>
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-xl space-y-6 text-center">
+          <div className="space-y-3">
+            <div className="text-6xl">🎉</div>
+            <h2 className="text-3xl font-bold text-gray-900">All caught up!</h2>
+            <p className="text-gray-600">You've voted on all active proposals.</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-3xl shadow-lg p-6 space-y-4 text-center">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Next proposal in</p>
+            <p className="text-4xl font-mono font-semibold text-gray-900">
+              {formatTimeRemaining(timeUntilNext)}
+            </p>
+            <p className="text-xs text-gray-500">
+              A new proposal is submitted every 12 minutes
+            </p>
+
+            {timeUntilNext <= 1000 && (
+              <div className="text-sm text-blue-600 font-medium">
+                Next proposal should appear any moment now.
+              </div>
+            )}
+
+            <button
+              onClick={onSubmitCreator}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-blue-500 text-white font-semibold shadow-md hover:shadow-lg transition-transform hover:scale-[1.01] active:scale-95"
+            >
+              Submit a Creator
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -236,7 +338,7 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   const rotation = Math.max(Math.min(dragOffset.x / 15, 15), -15);
   const supportOpacity = Math.min(1, Math.abs(dragOffset.x) / 140);
   const abstainOpacity = Math.min(1, Math.max(0, -dragOffset.y) / 140);
-  const visibleProposals = proposals.slice(currentIndex, currentIndex + 2);
+  const visibleProposals = availableProposals.slice(currentIndex, currentIndex + 2);
 
   return (
     <div className="flex-1 flex flex-col bg-white">
@@ -294,7 +396,7 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
                   className="absolute top-8 right-8 bg-green-500 text-white px-6 py-3 rounded-full font-bold text-xl rotate-12 shadow-xl"
                   style={{ opacity: activeVote === 'for' ? 1 : supportOpacity }}
                 >
-                  SUPPORT
+                  YAY
                 </div>
               )}
 
@@ -303,7 +405,7 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
                   className="absolute top-8 left-8 bg-red-500 text-white px-6 py-3 rounded-full font-bold text-xl -rotate-12 shadow-xl"
                   style={{ opacity: activeVote === 'against' ? 1 : supportOpacity }}
                 >
-                  PASS
+                  NAY
                 </div>
               )}
 
@@ -320,27 +422,61 @@ export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
         })}
       </div>
 
-      <div className="flex justify-center items-center gap-6 p-8">
-        <button
-          onClick={() => handleVote('against')}
-          className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-        >
-          <X className="w-8 h-8 text-red-600" />
-        </button>
+      <div className="flex flex-col items-center gap-4 p-8">
+        {/* Vote Status Indicator */}
+        {voteStatus !== 'idle' && (
+          <div className={`rounded-xl px-4 py-2 flex items-center gap-2 text-sm font-medium ${
+            voteStatus === 'submitting' ? 'bg-blue-50 text-blue-700' :
+            voteStatus === 'success' ? 'bg-green-50 text-green-700' :
+            'bg-red-50 text-red-700'
+          }`}>
+            {voteStatus === 'submitting' && (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Submitting vote on-chain...
+              </>
+            )}
+            {voteStatus === 'success' && (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                Vote confirmed!
+              </>
+            )}
+            {voteStatus === 'error' && (
+              <>
+                <AlertCircle className="w-4 h-4" />
+                {voteError || 'Failed to submit vote'}
+              </>
+            )}
+          </div>
+        )}
 
-        <button
-          onClick={() => handleVote('abstain')}
-          className="w-14 h-14 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-        >
-          <MoveUp className="w-6 h-6 text-blue-600" />
-        </button>
+        {/* Vote Buttons */}
+        <div className="flex justify-center items-center gap-6">
+          <button
+            onClick={() => handleVote('against')}
+            disabled={voteStatus === 'submitting'}
+            className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            <X className="w-8 h-8 text-red-600" />
+          </button>
 
-        <button
-          onClick={() => handleVote('for')}
-          className="w-16 h-16 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
-        >
-          <Heart className="w-8 h-8 text-green-600" fill="currentColor" />
-        </button>
+          <button
+            onClick={() => handleVote('abstain')}
+            disabled={voteStatus === 'submitting'}
+            className="w-14 h-14 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            <MoveUp className="w-6 h-6 text-blue-600" />
+          </button>
+
+          <button
+            onClick={() => handleVote('for')}
+            disabled={voteStatus === 'submitting'}
+            className="w-16 h-16 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            <Heart className="w-8 h-8 text-green-600" fill="currentColor" />
+          </button>
+        </div>
       </div>
     </div>
   );

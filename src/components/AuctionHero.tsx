@@ -6,6 +6,8 @@ import { parseEther } from 'viem';
 import NounImage from './NounImage';
 import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
 import type { Auction } from '../config/contracts';
+import { EnsName } from './EnsName';
+import { useNftName } from '../hooks/useNftName';
 
 interface AuctionHeroProps {
   auction?: Auction;
@@ -46,12 +48,10 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   canGoPrev = true,
   currentWalletAddress,
 }) => {
+  const { name: nftCollectionName, isLoading: isLoadingName } = useNftName();
   const status = getAuctionStatus(auction);
   const nounId = auction ? Number(auction.nounId) : undefined;
-  const bidderLabel =
-    auction && auction.bidder !== ZERO_ADDRESS
-      ? `${auction.bidder.slice(0, 6)}...${auction.bidder.slice(-4)}`
-      : 'No bids yet';
+  const hasBids = auction && auction.bidder !== ZERO_ADDRESS;
   const countdownLabel = formatCountdown(countdownMs);
   const etherLabel = auction ? formatEth(auction.amount, 3) : 'Loading';
   const isEnded = status === 'ended';
@@ -144,7 +144,7 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-wide text-gray-500">Auction</p>
               <h1 className="text-3xl font-bold text-gray-900">
-                {nounId !== undefined ? `Noun ${nounId}` : 'Loading'}
+                {nounId !== undefined ? `${nftCollectionName} #${nounId}` : 'Loading'}
               </h1>
               <p className="text-sm text-gray-500">{dateLabel || '—'}</p>
             </div>
@@ -165,10 +165,24 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-2xl bg-gray-50 px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">
-                {isCurrentView ? 'Current bid' : 'Winning bid'}
+                {isCurrentView ? 'Highest bidder' : 'Winning bidder'}
               </p>
+              <p className="mt-1 text-base font-semibold text-gray-900">
+                {hasBids ? (
+                  <EnsName 
+                    address={auction.bidder} 
+                    className="text-base font-semibold text-gray-900"
+                    showAvatar={true}
+                    avatarSize="sm"
+                  />
+                ) : (
+                  'No bids yet'
+                )}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-gray-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Current bid</p>
               <p className="mt-1 text-2xl font-bold text-gray-900">{etherLabel}</p>
-              <p className="mt-1 text-sm text-gray-600">{bidderLabel}</p>
             </div>
             <div className="rounded-2xl bg-gray-50 px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">

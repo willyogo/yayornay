@@ -2,54 +2,107 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAccount } from 'wagmi';
 import { queueVote, getQueuedVotesForVoter, QueuedVote } from '../lib/voteQueue';
+import { CONTRACTS, GovernorABI } from '../config/contracts';
+import { useSponsoredTransaction } from './useSponsoredTransaction';
 import { useServerWallet } from './useServerWallet';
 
 export type VoteType = 'for' | 'against' | 'abstain';
 
+// Convert vote type to on-chain support value
+// 0 = Against, 1 = For, 2 = Abstain (standard Governor Bravo support values)
+function voteTypeToSupport(voteType: VoteType): 0 | 1 | 2 {
+  switch (voteType) {
+    case 'for':
+      return 1;
+    case 'against':
+      return 0;
+    case 'abstain':
+      return 2;
+  }
+}
+
 export function useVoting() {
   const { address } = useAccount();
-  const { serverWalletAddress } = useServerWallet();
-  const [submitting, setSubmitting] = useState(false);
+  const sponsoredTx = useSponsoredTransaction();
+  const { serverWalletAddress } = useServerWallet(); // Available for future server wallet integration
+  const [error, setError] = useState<string | null>(null);
 
   /**
-   * Submit a vote
-   * If server wallet is available, it can be used for future gasless voting
-   * Currently stores vote in database (same as before)
+   * Submit a vote on-chain using the Nouns Builder Governor contract
+   * Gas is sponsored by Coinbase Paymaster for Smart Wallet users
+   * 
+   * Note: serverWalletAddress is available for future server wallet integration
+   * for gasless voting via Edge Functions
    */
   const submitVote = async (proposalId: string, voteType: VoteType) => {
     if (!address) {
       throw new Error('Wallet not connected');
     }
 
-    setSubmitting(true);
+    setError(null);
+
     try {
-      // Queue the vote in localStorage
-      queueVote(proposalId, voteType, address);
-      
-      // Note: If serverWalletAddress is available, future implementation could
-      // use it for gasless on-chain voting. For now, votes are stored in database.
-      
-      // Note: Votes are now queued and can be submitted later via submitQueuedVotes()
-    } finally {
-      setSubmitting(false);
+      const support = voteTypeToSupport(voteType);
+
+      // Convert proposalId to bytes32 format expected by the contract
+      let proposalIdBytes32: `0x${string}`;
+      if (proposalId.startsWith('0x')) {
+        proposalIdBytes32 = proposalId as `0x${string}`;
+      } else {
+        const hex = BigInt(proposalId).toString(16).padStart(64, '0');
+        proposalIdBytes32 = `0x${hex}` as `0x${string}`;
+      }
+
+      console.log('[Voting] Submitting sponsored vote:', {
+        proposalId: proposalIdBytes32,
+        voteType,
+        support,
+        serverWalletAvailable: !!serverWalletAddress,
+      });
+
+      // Execute sponsored transaction
+      const { hash } = await sponsoredTx.execute({
+        address: CONTRACTS.GOVERNOR,
+        abi: GovernorABI,
+        functionName: 'castVote',
+        args: [proposalIdBytes32, BigInt(support)],
+      });
+
+      // Store vote in Supabase for analytics/UI purposes
+      try {
+        await supabase.from('votes').insert({
+          proposal_id: proposalId,
+          voter_address: address,
+          vote_type: voteType,
+          voting_power: 1,
+          transaction_hash: hash,
+        });
+      } catch (dbError) {
+        console.warn('Failed to store vote in database:', dbError);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit vote';
+      setError(errorMessage);
+      throw err;
     }
   };
 
   /**
-   * Submit a queued vote to Supabase
+   * Queue a vote instead of immediately submitting it (for offline/batch voting)
+   */
+  const queueVoteForLater = async (proposalId: string, voteType: VoteType) => {
+    if (!address) {
+      throw new Error('Wallet not connected');
+    }
+
+    queueVote(proposalId, voteType, address);
+  };
+
+  /**
+   * Submit a queued vote to blockchain
    */
   const submitQueuedVote = async (queuedVote: QueuedVote) => {
-    const { error } = await supabase
-      .from('votes')
-      .insert({
-        proposal_id: queuedVote.proposalId,
-        voter_address: queuedVote.voterAddress,
-        vote_type: queuedVote.voteType,
-        voting_power: 1,
-        transaction_hash: `0x${Date.now().toString(16)}`,
-      });
-
-    if (error) throw error;
+    return submitVote(queuedVote.proposalId, queuedVote.voteType);
   };
 
   /**
@@ -60,5 +113,13 @@ export function useVoting() {
     return getQueuedVotesForVoter(address);
   };
 
-  return { submitVote, submitting, submitQueuedVote, getQueuedVotes };
+  return {
+    submitVote,
+    submitting: sponsoredTx.isSubmitting,
+    txHash: sponsoredTx.txHash,
+    error: error || sponsoredTx.error,
+    queueVoteForLater,
+    submitQueuedVote,
+    getQueuedVotes
+  };
 }

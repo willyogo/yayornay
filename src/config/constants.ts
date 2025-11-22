@@ -5,24 +5,24 @@
 
 // Chain Configuration
 export const CHAIN_CONFIG = {
-  ID: 84532, // Base Sepolia testnet
-  NAME: 'base-sepolia',
-  DISPLAY_NAME: 'Base Sepolia',
-  RPC_URL: 'https://sepolia.base.org',
-  BLOCK_EXPLORER_URL: 'https://sepolia.basescan.org',
+  ID: 8453, // Base Mainnet
+  NAME: 'base',
+  DISPLAY_NAME: 'Base',
+  RPC_URL: 'https://mainnet.base.org',
+  BLOCK_EXPLORER_URL: 'https://basescan.org',
 } as const;
 
-// Builder DAO testnet contracts on Base Sepolia
+// Builder DAO contracts on Base Mainnet
 export const CONTRACTS = {
-  NFT: '0x626FbB71Ca4FE65F94e73AB842148505ae1a0B26',
-  AUCTION_HOUSE: '0xe9609Fb710bDC6f88Aa5992014a156aeb31A6896',
-  GOVERNOR: '0x9F530c7bCdb859bB1DcA3cD4EAE644f973A5f505',
-  TREASURY: '0x3ed26c1d23Fd4Ea3B5e2077B60B4F1EC80Aba94f',
-  METADATA: '0x82ACd8e6ea567d99B63fcFc21ec824b5D05C9744',
+  NFT: '0x3740fea2a46ca4414b4afde16264389642e6596a',
+  AUCTION_HOUSE: '0x14227ed5dd596e3a63773933ba68014ed3cfb7e5',
+  GOVERNOR: '0x2ff7852a23e408cb6b7ba5c89384672eb88dab2e',
+  TREASURY: '0x72b052a9a830001ce202ad907e6eedd0b86c4a88',
+  METADATA: '0x47887fc1e456531765ecad1ae20b762f59ae6cf9',
 } as const;
 
-// Legacy DAO address (from app.ts)
-export const DAO_ADDRESS = '0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17' as const;
+// DAO address (token contract) used for subgraph filtering
+export const DAO_ADDRESS = CONTRACTS.NFT;
 
 // Export all constants as a single object for convenience
 export const CONSTANTS = {
@@ -30,4 +30,3 @@ export const CONSTANTS = {
   CONTRACTS,
   DAO_ADDRESS,
 } as const;
-

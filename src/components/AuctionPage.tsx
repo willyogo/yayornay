@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAccount, useWriteContract, useConnect } from 'wagmi';
 import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
 import { config } from '../lib/wagmi';
 import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
-import { parseEther } from 'viem';
+import { base } from 'viem/chains';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
+import { useSponsoredTransaction } from '../hooks/useSponsoredTransaction';
 import { AppView } from '../types/view';
 import { CHAIN_CONFIG } from '../config/constants';
 import AuctionHero from './AuctionHero';
@@ -23,30 +23,24 @@ interface AuctionPageProps {
 }
 
 const publicClient = createPublicClient({
-  chain: baseSepolia,
+  chain: base,
   transport: http(),
 });
 
 export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
-  const { isConnected, address, chainId } = useAccount();
+  const { isConnected, address } = useAccount();
   const { connect, connectors } = useConnect();
   const {
     auction,
-    currentBid,
-    currentBidRaw,
-    currentBidder,
-    nounId,
-    settled,
-    reservePrice,
-    reservePriceWei,
-    minIncrementPct,
-    duration,
-    minRequiredWei,
+    countdown: _countdown,
+    countdownLabel: _countdownLabel,
     status,
-    isLoading,
+    settled,
+    minRequiredWei,
     refetch,
   } = useAuction();
 
+  const sponsoredTx = useSponsoredTransaction();
   const [bidModalOpen, setBidModalOpen] = useState(false);
   const [bidSubmitting, setBidSubmitting] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
@@ -93,57 +87,43 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       return;
     }
 
-    // Fetch past auction (prefer subgraph, fallback to contract settlements)
+    // Fetch past auction from subgraph
     (async () => {
       try {
         // Try subgraph first (matching original component approach)
         if (isSubgraphConfigured()) {
           const sg = await fetchAuctionById(viewNounId);
           if (sg) {
+            // Use winningBid for settled auctions, highestBid for active auctions
+            const bidAmount = sg.winningBid?.amount ?? sg.highestBid?.amount ?? '0';
+            const bidderAddress = sg.winningBid?.bidder ?? sg.highestBid?.bidder ?? '0x0000000000000000000000000000000000000000';
+            
+            // Parse the subgraph ID format: "daoAddress:tokenId"
+            const tokenId = sg.id.includes(':') ? sg.id.split(':')[1] : sg.id;
+            
             setDisplayAuction({
-              nounId: BigInt(sg.id),
-              amount: BigInt(sg.amount),
+              nounId: BigInt(tokenId),
+              amount: BigInt(bidAmount),
               startTime: BigInt(sg.startTime),
               endTime: BigInt(sg.endTime),
-              bidder: (sg.bidder?.id ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+              bidder: bidderAddress as `0x${string}`,
               settled: Boolean(sg.settled),
             });
             return;
           }
         }
 
-        // Fallback to contract settlements if subgraph unavailable or no data
-        const settlementData = await publicClient.readContract({
-          address: CONTRACTS.AUCTION_HOUSE,
-          abi: AUCTION_HOUSE_ABI,
-          functionName: 'getSettlements',
-          args: [BigInt(viewNounId), BigInt(viewNounId), true],
+        // No data found from subgraph - show placeholder
+        setDisplayAuction({
+          nounId: BigInt(viewNounId),
+          amount: 0n,
+          startTime: 0n,
+          endTime: 0n,
+          bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          settled: false,
         });
-
-        if (settlementData && Array.isArray(settlementData) && settlementData.length > 0) {
-          const settlement = settlementData[0] as any;
-          const settlementTime = BigInt(settlement.blockTimestamp);
-          
-          setDisplayAuction({
-            nounId: BigInt(viewNounId),
-            amount: BigInt(settlement.amount),
-            startTime: settlementTime,
-            endTime: settlementTime,
-            bidder: settlement.winner as `0x${string}`,
-            settled: true,
-          });
-        } else {
-          // No data found
-          setDisplayAuction({
-            nounId: BigInt(viewNounId),
-            amount: 0n,
-            startTime: 0n,
-            endTime: 0n,
-            bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-            settled: false,
-          });
-        }
-      } catch {
+      } catch (error) {
+        console.error('Error fetching past auction:', error);
         // Fallback: create a placeholder auction
         setDisplayAuction({
           nounId: BigInt(viewNounId),
@@ -155,7 +135,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         });
       }
     })();
-  }, [viewNounId, auction, publicClient]);
+  }, [viewNounId, publicClient]);
 
   // Update countdown for display auction
   useEffect(() => {
@@ -195,7 +175,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   }, [viewNounId, auction]);
 
   const canGoNext = auction ? (viewNounId ?? 0) < Number(auction.nounId) : false;
-  const canGoPrev = viewNounId != null && viewNounId > 0;
   const isCurrentView = viewNounId === (auction ? Number(auction.nounId) : null);
 
   const dateLabel = useMemo(() => {
@@ -244,48 +223,26 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       try {
         setBidSubmitting(true);
         setActionError(null);
-        setActionMessage('Waiting for wallet signature...');
+        setActionMessage('Submitting sponsored bid...');
 
-        // Try to simulate first
-        let hash: `0x${string}` | undefined;
-        try {
-          const simulation = await simulateContract(config, {
-            address: CONTRACTS.AUCTION_HOUSE,
-            abi: AUCTION_HOUSE_ABI,
-            functionName: 'createBid',
-            args: [auction.nounId],
-            value: valueWei,
-            account: address!,
-          });
-          setActionMessage('Transaction submitted. Waiting for confirmation...');
-          hash = await writeContractAsync(simulation.request);
-        } catch {
-          // Fallback to direct write if simulation fails
-          setActionMessage('Submitting transaction...');
-          hash = await writeContractAsync({
-            address: CONTRACTS.AUCTION_HOUSE,
-            abi: AUCTION_HOUSE_ABI,
-            functionName: 'createBid',
-            args: [auction.nounId],
-            value: valueWei,
-          });
-        }
-
-        if (!hash) throw new Error('No transaction hash');
-
-        setTxHash(hash);
-        const receipt = await waitForTransactionReceipt(config, {
-          hash,
-          timeout: 60_000,
+        console.log('[Auction] Placing sponsored bid:', {
+          nounId: auction.nounId,
+          value: valueWei.toString(),
         });
 
-        if (receipt.status === 'success') {
-          setActionMessage('Bid confirmed!');
-          setBidModalOpen(false);
-          await refetch();
-        } else {
-          setActionError('Bid transaction failed');
-        }
+        // Execute sponsored bid transaction
+        const { hash } = await sponsoredTx.execute({
+          address: CONTRACTS.AUCTION_HOUSE,
+          abi: AUCTION_HOUSE_ABI,
+          functionName: 'createBid',
+          args: [auction.nounId],
+          value: valueWei,
+        });
+
+        setTxHash(hash);
+        setActionMessage('Bid confirmed!');
+        setBidModalOpen(false);
+        await refetch();
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Failed to place bid';
@@ -296,7 +253,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         setTimeout(() => setActionMessage(null), 6000);
       }
     },
-    [auction, isConnected, address, writeContractAsync, refetch]
+    [auction, isConnected, sponsoredTx, refetch]
   );
 
   const attemptSettle = useCallback(

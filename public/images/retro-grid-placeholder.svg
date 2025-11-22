@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Neon grid placeholder background">
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#0c1f16" />
+      <stop offset="50%" stop-color="#0a0a0f" />
+      <stop offset="100%" stop-color="#170014" />
+    </linearGradient>
+    <linearGradient id="split" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#00ff9a" stop-opacity="0.32" />
+      <stop offset="50%" stop-color="#0d0d0d" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#ff2fa0" stop-opacity="0.38" />
+    </linearGradient>
+    <linearGradient id="sun" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#7CFFCC" />
+      <stop offset="45%" stop-color="#5CF0DA" />
+      <stop offset="100%" stop-color="#FF5BBF" />
+    </linearGradient>
+    <pattern id="grid" width="120" height="120" patternUnits="userSpaceOnUse">
+      <path d="M 120 0 L 0 0 0 120" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+    </pattern>
+    <linearGradient id="gridGlow" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#22c55e" stop-opacity="0.35" />
+      <stop offset="50%" stop-color="#67e8f9" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#ec4899" stop-opacity="0.35" />
+    </linearGradient>
+    <linearGradient id="scan" x1="0%" x2="0%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.25)" />
+      <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+    </linearGradient>
+    <clipPath id="sunClip">
+      <circle cx="800" cy="380" r="190" />
+    </clipPath>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)" />
+  <rect width="1600" height="900" fill="url(#split)" />
+
+  <g clip-path="url(#sunClip)">
+    <rect x="600" y="190" width="400" height="380" fill="url(#sun)" opacity="0.9" />
+    <g stroke="rgba(255,255,255,0.4)" stroke-width="10">
+      <line x1="600" x2="1000" y1="230" y2="230" />
+      <line x1="600" x2="1000" y1="270" y2="270" />
+      <line x1="600" x2="1000" y1="310" y2="310" />
+      <line x1="600" x2="1000" y1="350" y2="350" />
+      <line x1="600" x2="1000" y1="390" y2="390" />
+      <line x1="600" x2="1000" y1="430" y2="430" />
+      <line x1="600" x2="1000" y1="470" y2="470" />
+      <line x1="600" x2="1000" y1="510" y2="510" />
+      <line x1="600" x2="1000" y1="550" y2="550" />
+    </g>
+  </g>
+
+  <g opacity="0.55">
+    <rect width="1600" height="900" fill="url(#grid)" />
+    <rect width="1600" height="900" fill="url(#gridGlow)" />
+  </g>
+
+  <rect y="520" width="1600" height="380" fill="url(#scan)" opacity="0.5" />
+</svg>

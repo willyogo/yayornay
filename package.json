@@ -21,7 +21,10 @@
     "check:production:local": "./scripts/check-production-ready.sh local"
   },
   "dependencies": {
+    "@buildeross/constants": "0.2.1",
     "@buildeross/sdk": "^0.2.1",
+    "@buildeross/types": "0.2.1",
+    "@buildeross/utils": "0.2.1",
     "@coinbase/onchainkit": "^1.1.2",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@supabase/supabase-js": "^2.57.4",
