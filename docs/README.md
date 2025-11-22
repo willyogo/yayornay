@@ -21,7 +21,8 @@ Step-by-step guides for common tasks.
 - **[Testing](./guides/testing.md)** - Testing framework and test suite guide
 - **[Local Testing](./guides/testing-local.md)** - Local testing guide for server wallets
 - **[Server Wallets Setup](./guides/server-wallets-setup.md)** - Complete server wallets implementation guide
-- **[Deployment](./guides/deployment.md)** - Server wallets deployment guide
+- **[Production Deployment](./guides/production-deployment.md)** - Complete production deployment guide
+- **[Wallet Encryption](./guides/wallet-encryption-setup.md)** - Wallet data encryption setup
 - **[Contributing](./guides/contributing.md)** - Contribution guidelines and workflow
 
 ### [Integrations](./integrations/)

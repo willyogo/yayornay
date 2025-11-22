@@ -1,6 +1,6 @@
 # Local Testing Guide for Server Wallets
 
-## Quick Start
+## Quick Test
 
 The simplest way to test wallet creation:
 

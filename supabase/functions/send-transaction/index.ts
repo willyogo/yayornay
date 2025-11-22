@@ -7,6 +7,9 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Coinbase, Wallet } from 'npm:@coinbase/coinbase-sdk@latest'
 
+// Import encryption utilities
+import { decryptWalletData, getEncryptionKey } from '../_shared/crypto.ts'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -69,9 +72,18 @@ serve(async (req) => {
       )
     }
 
-    // Restore wallet from stored data
-    // Note: In production, decrypt walletData before importing!
-    const wallet = await Wallet.import(walletRecord.wallet_data)
+    // Decrypt wallet data before importing
+    const encryptionKey = getEncryptionKey()
+    const decryptedWalletDataString = await decryptWalletData(
+      walletRecord.wallet_data,
+      encryptionKey
+    )
+    
+    // Parse decrypted JSON string back to object
+    const decryptedWalletData = JSON.parse(decryptedWalletDataString)
+    
+    // Restore wallet from decrypted data
+    const wallet = await Wallet.import(decryptedWalletData)
 
     // Send transaction
     const transfer = await wallet.send({

@@ -30,7 +30,7 @@ Creates the `server_wallets` table with:
 ### 4. Documentation
 
 - `docs/architecture/server-wallets-implementation.md` - Implementation guide
-- `docs/guides/deployment.md` - Deployment instructions
+- `docs/guides/production-deployment.md` - Production deployment guide
 
 ## 🚀 Quick Start
 

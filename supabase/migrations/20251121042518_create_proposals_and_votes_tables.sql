@@ -75,6 +75,14 @@ CREATE INDEX IF NOT EXISTS idx_votes_voter_address ON votes(voter_address);
 ALTER TABLE proposals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "Anyone can read proposals" ON proposals;
+DROP POLICY IF EXISTS "Service role can insert proposals" ON proposals;
+DROP POLICY IF EXISTS "Service role can update proposals" ON proposals;
+DROP POLICY IF EXISTS "Anyone can read votes" ON votes;
+DROP POLICY IF EXISTS "Anyone can insert votes" ON votes;
+DROP POLICY IF EXISTS "Users can update their own votes" ON votes;
+
 -- RLS Policies for proposals table
 CREATE POLICY "Anyone can read proposals"
   ON proposals FOR SELECT

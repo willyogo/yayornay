@@ -9,6 +9,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // Import CDP SDK - using npm: specifier for Deno compatibility
 import { Coinbase, Wallet } from 'npm:@coinbase/coinbase-sdk@latest'
 
+// Import encryption utilities
+import { encryptWalletData, getEncryptionKey } from '../_shared/crypto.ts'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -149,15 +152,18 @@ serve(async (req) => {
       }
     }
 
-    // Store wallet in database
-    // Note: In production, encrypt walletData before storing!
+    // Encrypt wallet data before storing
+    const encryptionKey = getEncryptionKey()
+    const encryptedWalletData = await encryptWalletData(walletData, encryptionKey)
+
+    // Store wallet in database with encrypted wallet_data
     const { data: insertedWallet, error: insertError } = await supabase
       .from('server_wallets')
       .insert({
         user_address: normalizedAddress,
         server_wallet_id: walletId,
         server_wallet_address: serverWalletAddress,
-        wallet_data: walletData, // ⚠️ In production, encrypt this!
+        wallet_data: encryptedWalletData, // ✅ Encrypted before storage
         network_id: 'base-sepolia',
       })
       .select()
