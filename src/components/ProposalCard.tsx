@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { TrendingUp, TrendingDown, Users, DollarSign, ArrowLeft, ExternalLink, Loader2, Triangle, Flame, Coins } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, DollarSign, ArrowLeft, ExternalLink, Loader2, Triangle, Flame, Coins, Twitter, MessageCircle } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { useZoraCoin } from '../hooks/useZoraCoin';
 import { formatCurrency, calculate24hChange } from '../lib/zora';
@@ -505,9 +505,10 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                               href={`https://warpcast.com/${coinData.creatorProfile.socialAccounts.farcaster.username}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full hover:bg-purple-200 transition-colors"
+                              className="inline-flex items-center gap-1.5 text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full hover:bg-purple-200 transition-colors"
                             >
-                              Farcaster
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              @{coinData.creatorProfile.socialAccounts.farcaster.username}
                             </a>
                           )}
                           {coinData.creatorProfile.socialAccounts.twitter?.username && (
@@ -515,9 +516,10 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                               href={`https://twitter.com/${coinData.creatorProfile.socialAccounts.twitter.username}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-200 transition-colors"
+                              className="inline-flex items-center gap-1.5 text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-200 transition-colors"
                             >
-                              Twitter
+                              <Twitter className="w-3.5 h-3.5" />
+                              @{coinData.creatorProfile.socialAccounts.twitter.username}
                             </a>
                           )}
                         </div>
