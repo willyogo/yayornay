@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { TrendingUp, TrendingDown, Users, DollarSign, ArrowLeft, ExternalLink, Loader2, Triangle, Flame, Coins, Twitter, MessageCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, DollarSign, ArrowLeft, ExternalLink, Loader2, Triangle, Flame, Coins, Twitter, MessageCircle, Clock } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { useZoraCoin } from '../hooks/useZoraCoin';
 import { formatCurrency, calculate24hChange } from '../lib/zora';
 import { EnsName } from './EnsName';
+import { CountdownTimer } from './CountdownTimer';
 
 interface ProposalCardProps {
   proposal: Proposal;
@@ -178,6 +179,12 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 setFlipState('feed');
               }}
             >
+              {proposal.status === 'pending' && (
+                <div className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-semibold shadow-lg backdrop-blur-sm">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Pending</span>
+                </div>
+              )}
               <div
                 className="h-full w-full p-3 grid grid-cols-2 grid-rows-2 gap-2"
                 aria-hidden="true"
@@ -262,47 +269,59 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                   {proposal.title}
                 </h3>
 
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-2.5 border border-blue-200/50">
-                    <div className="flex items-center gap-1.5 text-blue-700 text-[10px] mb-0.5 font-medium">
-                      <DollarSign className="w-3 h-3" />
-                      Market Cap
-                    </div>
-                    <div className="text-base font-bold text-gray-900">
-                      {displayData.marketCap}
-                    </div>
+                {proposal.status === 'pending' ? (
+                  <div className="flex items-center justify-center py-6">
+                    <CountdownTimer
+                      targetDate={proposal.vote_start || proposal.created_at}
+                      onComplete={() => {
+                        // Optionally trigger a refetch when voting opens
+                        window.location.reload();
+                      }}
+                    />
                   </div>
-
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-2.5 border border-purple-200/50">
-                    <div className="flex items-center gap-1.5 text-purple-700 text-[10px] mb-0.5 font-medium">
-                      <TrendingUp className="w-3 h-3" />
-                      24h Volume
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-2.5 border border-blue-200/50">
+                      <div className="flex items-center gap-1.5 text-blue-700 text-[10px] mb-0.5 font-medium">
+                        <DollarSign className="w-3 h-3" />
+                        Market Cap
+                      </div>
+                      <div className="text-base font-bold text-gray-900">
+                        {displayData.marketCap}
+                      </div>
                     </div>
-                    <div className="text-base font-bold text-gray-900">
-                      {displayData.volume24h}
-                    </div>
-                  </div>
 
-                  <div className={`rounded-xl p-2.5 col-span-2 border ${
-                    displayData.change24h >= 0 
-                      ? 'bg-gradient-to-br from-green-50 to-emerald-100 border-green-200/50' 
-                      : 'bg-gradient-to-br from-red-50 to-rose-100 border-red-200/50'
-                  }`}>
-                    <div className={`flex items-center gap-1.5 text-[10px] mb-0.5 font-medium ${
-                      displayData.change24h >= 0 ? 'text-green-700' : 'text-red-700'
-                    }`}>
-                      {displayData.change24h >= 0 ? (
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-2.5 border border-purple-200/50">
+                      <div className="flex items-center gap-1.5 text-purple-700 text-[10px] mb-0.5 font-medium">
                         <TrendingUp className="w-3 h-3" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3" />
-                      )}
-                      24h Change
+                        24h Volume
+                      </div>
+                      <div className="text-base font-bold text-gray-900">
+                        {displayData.volume24h}
+                      </div>
                     </div>
-                    <div className={`text-base font-bold ${displayData.change24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {displayData.change24h >= 0 ? '+' : ''}{displayData.change24h.toFixed(2)}%
+
+                    <div className={`rounded-xl p-2.5 col-span-2 border ${
+                      displayData.change24h >= 0
+                        ? 'bg-gradient-to-br from-green-50 to-emerald-100 border-green-200/50'
+                        : 'bg-gradient-to-br from-red-50 to-rose-100 border-red-200/50'
+                    }`}>
+                      <div className={`flex items-center gap-1.5 text-[10px] mb-0.5 font-medium ${
+                        displayData.change24h >= 0 ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {displayData.change24h >= 0 ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        24h Change
+                      </div>
+                      <div className={`text-base font-bold ${displayData.change24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {displayData.change24h >= 0 ? '+' : ''}{displayData.change24h.toFixed(2)}%
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

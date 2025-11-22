@@ -69,6 +69,9 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   const handleVote = async (voteType: VoteType) => {
     if (!currentProposal || animationLock.current) return;
 
+    // Don't allow voting on pending proposals
+    if (currentProposal.status === 'pending') return;
+
     animationLock.current = true;
     activePointerId.current = null;
     activeInputType.current = null;
@@ -119,6 +122,9 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
     type: 'mouse' | 'touch'
   ) => {
     if (animationLock.current) return;
+
+    // Don't allow dragging on pending proposals
+    if (currentProposal?.status === 'pending') return;
 
     activePointerId.current = pointerId;
     activeInputType.current = type;
@@ -455,7 +461,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
         <div className="flex justify-center items-center gap-6">
           <button
             onClick={() => handleVote('against')}
-            disabled={voteStatus === 'submitting'}
+            disabled={voteStatus === 'submitting' || currentProposal?.status === 'pending'}
             className="w-16 h-16 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <X className="w-8 h-8 text-red-600" />
@@ -463,7 +469,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
           <button
             onClick={() => handleVote('abstain')}
-            disabled={voteStatus === 'submitting'}
+            disabled={voteStatus === 'submitting' || currentProposal?.status === 'pending'}
             className="w-14 h-14 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <MoveUp className="w-6 h-6 text-blue-600" />
@@ -471,7 +477,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
           <button
             onClick={() => handleVote('for')}
-            disabled={voteStatus === 'submitting'}
+            disabled={voteStatus === 'submitting' || currentProposal?.status === 'pending'}
             className="w-16 h-16 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <Heart className="w-8 h-8 text-green-600" fill="currentColor" />

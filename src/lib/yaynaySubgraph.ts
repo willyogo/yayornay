@@ -159,6 +159,35 @@ export async function fetchActiveProposalsFromSubgraph(
 }
 
 /**
+ * Fetch pending proposals (not yet open for voting)
+ */
+export async function fetchPendingProposalsFromSubgraph(
+  first: number = 100,
+  skip: number = 0
+): Promise<SubgraphProposal[]> {
+  const now = Math.floor(Date.now() / 1000);
+
+  // Query for proposals where voting hasn't started yet
+  // - Voting hasn't started (voteStart > now)
+  // - Not executed yet (executedAt is null)
+  const where = {
+    dao_: {
+      governorAddress: CONTRACTS.GOVERNOR.toLowerCase(),
+    },
+    voteStart_gt: now.toString(),
+    executedAt: null,
+  };
+
+  const data = await gql<{ proposals: SubgraphProposal[] }>({
+    where,
+    first,
+    skip,
+  });
+
+  return data.proposals || [];
+}
+
+/**
  * Fetch active proposals that a specific user hasn't voted on yet
  */
 export async function fetchUnvotedProposalsForUser(

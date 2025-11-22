@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Proposal } from '../lib/supabase';
 import { DAO_ADDRESS } from '../config/constants';
-import { fetchActiveProposalsFromSubgraph, fetchUnvotedProposalsForUser, SubgraphProposal } from '../lib/yaynaySubgraph';
+import { fetchActiveProposalsFromSubgraph, fetchPendingProposalsFromSubgraph, fetchUnvotedProposalsForUser, SubgraphProposal } from '../lib/yaynaySubgraph';
 
 const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['']s creator coin/i;
 const TITLE_CREATOR_REGEX = /purchase\s+([a-zA-Z0-9._-]+)['']s creator coin/i;
@@ -136,7 +136,7 @@ const extractCreatorHandle = (proposal: SubgraphProposal, parsed: ParsedProposal
   return `@${handle}`;
 };
 
-const normalizeSubgraphProposal = (proposal: SubgraphProposal): Proposal => {
+const normalizeSubgraphProposal = (proposal: SubgraphProposal, isPending: boolean = false): Proposal => {
   const parsed = parseProposalMetadata(proposal);
   const creatorHandle = extractCreatorHandle(proposal, parsed);
   const proposalId = buildProposalId(proposal);
@@ -159,7 +159,7 @@ const normalizeSubgraphProposal = (proposal: SubgraphProposal): Proposal => {
     title: computedTitle,
     description: proposal.description || null,
     cover_image_url: null,
-    status: 'active',
+    status: isPending ? 'pending' : 'active',
     vote_start: toIsoFromSeconds(proposal.voteStart),
     created_at: toIsoFromSeconds(proposal.timeCreated),
     updated_at: toIsoFromSeconds(proposal.voteEnd || proposal.expiresAt || proposal.timeCreated),
@@ -180,21 +180,42 @@ export function useProposals(testMode: boolean = false, userAddress?: string) {
       setError(null);
 
       try {
-        // Fetch proposals based on whether we have a user address
-        let subgraphProposals: SubgraphProposal[];
+        // Fetch both active and pending proposals
+        let activeProposals: SubgraphProposal[];
+        let pendingProposals: SubgraphProposal[] = [];
 
         if (userAddress) {
           // Fetch only proposals the user hasn't voted on
-          subgraphProposals = await fetchUnvotedProposalsForUser(userAddress);
+          activeProposals = await fetchUnvotedProposalsForUser(userAddress);
         } else {
           // Fetch all active proposals
-          subgraphProposals = await fetchActiveProposalsFromSubgraph();
+          activeProposals = await fetchActiveProposalsFromSubgraph();
+        }
+
+        // Always fetch pending proposals
+        try {
+          pendingProposals = await fetchPendingProposalsFromSubgraph();
+        } catch (pendingErr) {
+          console.warn('Failed to fetch pending proposals:', pendingErr);
+          // Continue with just active proposals if pending fetch fails
         }
 
         if (isActive) {
-          if (subgraphProposals.length > 0) {
-            // Use proposals from subgraph
-            setProposals(subgraphProposals.map(normalizeSubgraphProposal));
+          const totalProposals = activeProposals.length + pendingProposals.length;
+
+          if (totalProposals > 0) {
+            // Combine active and pending proposals
+            const normalizedActive = activeProposals.map(p => normalizeSubgraphProposal(p, false));
+            const normalizedPending = pendingProposals.map(p => normalizeSubgraphProposal(p, true));
+
+            // Sort by vote_start time (soonest first for pending, then active)
+            const allProposals = [...normalizedPending, ...normalizedActive].sort((a, b) => {
+              const timeA = new Date(a.vote_start || a.created_at).getTime();
+              const timeB = new Date(b.vote_start || b.created_at).getTime();
+              return timeA - timeB;
+            });
+
+            setProposals(allProposals);
           } else if (testMode) {
             // Fallback to mock proposals only in test mode if no subgraph proposals found
             setProposals(mockProposals);
