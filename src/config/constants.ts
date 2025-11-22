@@ -21,8 +21,8 @@ export const CONTRACTS = {
   METADATA: '0x82ACd8e6ea567d99B63fcFc21ec824b5D05C9744',
 } as const;
 
-// Legacy DAO address (from app.ts)
-export const DAO_ADDRESS = '0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17' as const;
+// DAO address (token contract) used for subgraph filtering
+export const DAO_ADDRESS = CONTRACTS.NFT;
 
 // Export all constants as a single object for convenience
 export const CONSTANTS = {
@@ -30,4 +30,3 @@ export const CONSTANTS = {
   CONTRACTS,
   DAO_ADDRESS,
 } as const;
-
