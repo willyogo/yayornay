@@ -1,7 +1,7 @@
-import { APP_CONFIG } from '../config/app';
+import { CONTRACTS } from '../config/contracts';
 
 const DEFAULT_YAYNAY_SUBGRAPH_URL =
-  'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-sepolia/dev/gn';
+  'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
 
 const PROPOSALS_QUERY = `
 query proposals($where: Proposal_filter, $first: Int!, $skip: Int) {
@@ -106,6 +106,7 @@ const getSubgraphEndpoint = () =>
 
 async function gql<T>(variables: Record<string, unknown>): Promise<T> {
   const endpoint = getSubgraphEndpoint();
+
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -121,6 +122,7 @@ async function gql<T>(variables: Record<string, unknown>): Promise<T> {
   }
 
   const json = await res.json();
+
   if (json.errors) {
     throw new Error(`Subgraph errors: ${JSON.stringify(json.errors)}`);
   }
@@ -133,10 +135,18 @@ export async function fetchActiveProposalsFromSubgraph(
   skip: number = 0
 ): Promise<SubgraphProposal[]> {
   const now = Math.floor(Date.now() / 1000);
+
+  // Query for proposals where voting is currently active
+  // - Voting has started (voteStart <= now)
+  // - Voting hasn't ended (voteEnd > now)
+  // - Not executed yet (executedAt is null)
   const where = {
-    dao: APP_CONFIG.DAO_ADDRESS.toLowerCase(),
-    voteStart_lte: now,
-    voteEnd_gt: now,
+    dao_: {
+      governorAddress: CONTRACTS.GOVERNOR.toLowerCase(),
+    },
+    voteStart_lte: now.toString(),
+    voteEnd_gt: now.toString(),
+    executedAt: null,
   };
 
   const data = await gql<{ proposals: SubgraphProposal[] }>({
@@ -146,6 +156,30 @@ export async function fetchActiveProposalsFromSubgraph(
   });
 
   return data.proposals || [];
+}
+
+/**
+ * Fetch active proposals that a specific user hasn't voted on yet
+ */
+export async function fetchUnvotedProposalsForUser(
+  userAddress: string,
+  first: number = 100,
+  skip: number = 0
+): Promise<SubgraphProposal[]> {
+  // First, fetch all active proposals
+  const allProposals = await fetchActiveProposalsFromSubgraph(first, skip);
+
+  // Filter out proposals where the user has already voted
+  const normalizedUserAddress = userAddress.toLowerCase();
+  const unvotedProposals = allProposals.filter((proposal) => {
+    // Check if user has voted on this proposal
+    const hasVoted = proposal.votes.some(
+      (vote) => vote.voter.toLowerCase() === normalizedUserAddress
+    );
+    return !hasVoted;
+  });
+
+  return unvotedProposals;
 }
 
 export function isYayNaySubgraphConfigured() {

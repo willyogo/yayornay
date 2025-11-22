@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Proposal } from '../lib/supabase';
 import { APP_CONFIG } from '../config/app';
-import { fetchActiveProposalsFromSubgraph, SubgraphProposal } from '../lib/yaynaySubgraph';
+import { fetchActiveProposalsFromSubgraph, fetchUnvotedProposalsForUser, SubgraphProposal } from '../lib/yaynaySubgraph';
 
 const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['’]s creator coin/i;
 const TITLE_CREATOR_REGEX = /purchase\s+([a-zA-Z0-9._-]+)['’]s creator coin/i;
@@ -104,10 +104,11 @@ const normalizeSubgraphProposal = (proposal: SubgraphProposal): Proposal => {
   };
 };
 
-export function useProposals(testMode: boolean = false) {
+export function useProposals(testMode: boolean = false, userAddress?: string) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   useEffect(() => {
     let isActive = true;
@@ -117,9 +118,17 @@ export function useProposals(testMode: boolean = false) {
       setError(null);
 
       try {
-        // Always try to query from subgraph first
-        const subgraphProposals = await fetchActiveProposalsFromSubgraph();
-        
+        // Fetch proposals based on whether we have a user address
+        let subgraphProposals: SubgraphProposal[];
+
+        if (userAddress) {
+          // Fetch only proposals the user hasn't voted on
+          subgraphProposals = await fetchUnvotedProposalsForUser(userAddress);
+        } else {
+          // Fetch all active proposals
+          subgraphProposals = await fetchActiveProposalsFromSubgraph();
+        }
+
         if (isActive) {
           if (subgraphProposals.length > 0) {
             // Use proposals from subgraph
@@ -154,7 +163,11 @@ export function useProposals(testMode: boolean = false) {
     return () => {
       isActive = false;
     };
-  }, [testMode]);
+  }, [testMode, userAddress, refetchTrigger]);
 
-  return { proposals, loading, error };
+  const refetch = () => {
+    setRefetchTrigger((prev) => prev + 1);
+  };
+
+  return { proposals, loading, error, refetch };
 }

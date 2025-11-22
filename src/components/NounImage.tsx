@@ -3,7 +3,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { base } from 'viem/chains';
 import { CONTRACTS } from '../config/contracts';
 
 type Props = {
@@ -27,7 +27,7 @@ const ERC721_ABI = [
 ] as const;
 
 const publicClient = createPublicClient({
-  chain: baseSepolia,
+  chain: base,
   transport: http(),
 });
 

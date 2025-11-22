@@ -5,7 +5,7 @@ import { useAccount, useWriteContract, useConnect } from 'wagmi';
 import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
 import { config } from '../lib/wagmi';
 import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { base } from 'viem/chains';
 import { parseEther } from 'viem';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
@@ -22,7 +22,7 @@ interface AuctionPageProps {
 }
 
 const publicClient = createPublicClient({
-  chain: baseSepolia,
+  chain: base,
   transport: http(),
 });
 
@@ -471,7 +471,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
                 <p className="text-xs text-muted-foreground">
                   Tx hash:{' '}
                   <a
-                    href={`https://sepolia.basescan.org/tx/${txHash}`}
+                    href={`https://basescan.org/tx/${txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline"
