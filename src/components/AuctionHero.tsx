@@ -169,7 +169,12 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
               </p>
               <p className="mt-1 text-base font-semibold text-gray-900">
                 {hasBids ? (
-                  <EnsName address={auction.bidder} className="text-base font-semibold text-gray-900" />
+                  <EnsName 
+                    address={auction.bidder} 
+                    className="text-base font-semibold text-gray-900"
+                    showAvatar={true}
+                    avatarSize="sm"
+                  />
                 ) : (
                   'No bids yet'
                 )}

@@ -1,38 +1,39 @@
-import { useEnsName, useEnsAvatar } from 'wagmi';
-import { normalize } from 'viem/ens';
-import { mainnet, base } from 'viem/chains';
+import { useQuery } from '@tanstack/react-query';
+
+interface ENSDataResponse {
+  address: string;
+  ens?: string;
+  ens_primary?: string;
+  avatar?: string;
+  avatar_url?: string;
+}
 
 /**
- * Hook to resolve ENS/Basename for a given address
- * Tries Ethereum mainnet ENS first, then Base Basename
+ * Hook to resolve ENS for a given address using ensdata.net API
+ * Returns primary ENS name and avatar from Ethereum mainnet
  */
 export function useEnsProfile(address?: string) {
-  // Try mainnet ENS first
-  const { data: mainnetEnsName, isLoading: isLoadingMainnet } = useEnsName({
-    address: address as `0x${string}` | undefined,
-    chainId: mainnet.id,
-    query: {
-      enabled: !!address && address.startsWith('0x'),
+  const { data, isLoading } = useQuery<ENSDataResponse>({
+    queryKey: ['ens', address],
+    queryFn: async () => {
+      if (!address) throw new Error('No address provided');
+      
+      const url = `https://ensdata.net/${address}`;
+      console.log('[useEnsProfile] Fetching:', url);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error('[useEnsProfile] Failed to fetch:', response.status, response.statusText);
+        throw new Error('Failed to fetch ENS data');
+      }
+      
+      const json = await response.json();
+      console.log('[useEnsProfile] Response for', address, ':', json);
+      return json;
     },
-  });
-
-  // Try Base Basename as fallback
-  const { data: baseEnsName, isLoading: isLoadingBase } = useEnsName({
-    address: address as `0x${string}` | undefined,
-    chainId: base.id,
-    query: {
-      enabled: !!address && address.startsWith('0x') && !mainnetEnsName,
-    },
-  });
-
-  const ensName = mainnetEnsName || baseEnsName;
-
-  const { data: ensAvatar, isLoading: isLoadingAvatar } = useEnsAvatar({
-    name: ensName ? normalize(ensName) : undefined,
-    chainId: mainnetEnsName ? mainnet.id : base.id,
-    query: {
-      enabled: !!ensName,
-    },
+    enabled: !!address && address.startsWith('0x'),
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour
+    retry: false,
   });
 
   const formatAddress = (addr: string) => {
@@ -41,11 +42,13 @@ export function useEnsProfile(address?: string) {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
+  const ensName = data?.ens_primary || data?.ens;
+
   return {
     displayName: ensName || (address ? formatAddress(address) : ''),
     ensName: ensName || null,
-    avatar: ensAvatar || null,
-    isLoading: isLoadingMainnet || isLoadingBase || isLoadingAvatar,
+    avatar: data?.avatar_url || data?.avatar || null,
+    isLoading,
     address,
   };
 }
