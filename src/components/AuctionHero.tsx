@@ -16,7 +16,6 @@ interface AuctionHeroProps {
   isConnected: boolean;
   onConnectWallet?: () => void;
   dateLabel?: string;
-  backgroundHex?: string;
   minRequiredWei?: bigint;
   onPlaceBid?: (valueWei: bigint) => void;
   isCurrentView?: boolean;
@@ -38,7 +37,6 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   isConnected,
   onConnectWallet,
   dateLabel,
-  backgroundHex,
   minRequiredWei,
   onPlaceBid,
   isCurrentView = true,
@@ -78,103 +76,141 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   };
 
   return (
-    <section
-      className="rounded-3xl p-6 text-[#17171d] shadow-sm overflow-visible flex items-center md:p-10"
-      style={{ backgroundColor: backgroundHex ?? '#f0f0ff' }}
-    >
-      <div className="mx-auto w-full max-w-[1200px] grid gap-6 md:grid-cols-[minmax(0,520px)_minmax(0,560px)] md:gap-12">
-        <div className="flex items-center justify-center md:justify-start md:ml-8">
-          {nounId !== undefined ? (
-            <NounImage
-              nounId={auction!.nounId}
-              className="h-[200px] w-auto max-w-full object-contain sm:h-[260px] md:h-[400px]"
-              priority
-            />
-          ) : (
-            <div className="flex aspect-square w-full max-w-[320px] items-center justify-center rounded-2xl border border-dashed border-black/10 bg-white/50">
-              <span className="text-sm text-muted-foreground">Fetching Noun...</span>
-            </div>
-          )}
+    <section className="w-full">
+      <div className="mx-auto w-full max-w-4xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+        <div className="relative bg-gradient-to-br from-gray-100 to-gray-200">
+          <div className="aspect-[4/3] w-full flex items-center justify-center p-6 sm:p-10">
+            {nounId !== undefined ? (
+              <NounImage
+                nounId={auction!.nounId}
+                className="h-full max-h-[360px] w-auto object-contain drop-shadow-2xl"
+                priority
+              />
+            ) : (
+              <div className="flex aspect-square w-full max-w-[320px] items-center justify-center rounded-2xl bg-white/70 text-sm text-gray-500 shadow-inner">
+                <span>Fetching Noun...</span>
+              </div>
+            )}
+          </div>
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/10 to-transparent pointer-events-none" />
+
+          <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-gray-800 shadow-md backdrop-blur">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  status === 'active'
+                    ? 'bg-emerald-500'
+                    : status === 'pending'
+                    ? 'bg-amber-400'
+                    : status === 'ended'
+                    ? 'bg-gray-500'
+                    : 'bg-gray-400'
+                }`}
+                aria-hidden="true"
+              />
+              {status === 'ended'
+                ? 'Auction ended'
+                : status === 'pending'
+                ? 'Auction starting soon'
+                : status === 'active'
+                ? 'Auction live'
+                : 'Loading auction'}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+              {isCurrentView
+                ? status === 'ended'
+                  ? '00:00'
+                  : countdownLabel
+                : 'Past auction'}
+            </span>
+          </div>
+
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            {onPrev && (
+              <button
+                type="button"
+                onClick={onPrev}
+                disabled={!canGoPrev}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-gray-900 shadow-md backdrop-blur transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                aria-label="Previous auction"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
+            {onNext && (
+              <button
+                type="button"
+                onClick={onNext}
+                disabled={!canGoNext}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-gray-900 shadow-md backdrop-blur transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                aria-label="Next auction"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-col justify-center gap-4 bg-white border border-black/10 rounded-2xl p-6">
-          <div className="flex flex-col gap-4">
-            {/* Top bar: date left, arrows right */}
-            <div className="flex items-center justify-between text-sm text-[#5a5a70]">
-              <span className="font-semibold">{dateLabel || '—'}</span>
-              <div className="flex items-center gap-2">
-                {onPrev && (
-                  <button
-                    type="button"
-                    onClick={onPrev}
-                    disabled={!canGoPrev}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-black/15 bg-white text-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
-                    aria-label="Previous auction"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                )}
-                {onNext && (
-                  <button
-                    type="button"
-                    onClick={onNext}
-                    disabled={!canGoNext}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-black/15 bg-white text-black disabled:opacity-40"
-                    aria-label="Next auction"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+        <div className="p-6 sm:p-8 space-y-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Auction</p>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {nounId !== undefined ? `Noun ${nounId}` : 'Loading'}
+              </h1>
+              <p className="text-sm text-gray-500">{dateLabel || '—'}</p>
             </div>
-            <h1 className="text-3xl font-semibold">
-              {nounId !== undefined ? `Noun ${nounId}` : 'Loading'}
-            </h1>
-            <div className="space-y-2">
-              {/* Compact rows for both mobile and desktop */}
-              <div className="flex w-full items-baseline justify-between">
-                <span className="text-sm text-[#5a5a70]">
-                  {isCurrentView ? 'Current bid' : 'Winning bid'}
+            <div className="flex items-center gap-2">
+              {auction?.settled && (
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  Settled
                 </span>
-                <span className="text-xl font-semibold">{etherLabel}</span>
-              </div>
-              {isCurrentView && (
-                <div className="flex w-full items-baseline justify-between">
-                  <span className="text-sm text-[#5a5a70]">Highest bidder</span>
-                  <span className="text-sm font-semibold">
-                    {auction && auction.bidder !== ZERO_ADDRESS ? (
-                      <span className="underline">{bidderLabel}</span>
-                    ) : (
-                      bidderLabel
-                    )}
-                  </span>
-                </div>
               )}
-              <div className="flex w-full items-baseline justify-between">
-                <span className="text-sm text-[#5a5a70]">
-                  {isCurrentView ? 'Time left' : 'Won by'}
+              {!isCurrentView && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                  Past auction
                 </span>
-                <span className="text-xl font-semibold">
-                  {isCurrentView
-                    ? status === 'ended'
-                      ? '00:00'
-                      : countdownLabel
-                    : bidderLabel}
-                </span>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Always reserve space for action buttons to maintain vertical alignment */}
-          <div className="flex flex-col gap-2 mt-1 min-h-[48px]">
-            {isCurrentView ? (
-              <>
-                {status === 'ended' && auction && !auction.settled ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-gray-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                {isCurrentView ? 'Current bid' : 'Winning bid'}
+              </p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{etherLabel}</p>
+            </div>
+            <div className="rounded-2xl bg-gray-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                {isCurrentView ? 'Highest bidder' : 'Winning bidder'}
+              </p>
+              <p className="mt-1 text-base font-semibold text-gray-900">{bidderLabel}</p>
+            </div>
+            <div className="rounded-2xl bg-gray-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                {isCurrentView ? 'Time left' : 'Ended'}
+              </p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                {isCurrentView
+                  ? status === 'ended'
+                    ? '00:00'
+                    : countdownLabel
+                  : dateLabel || '—'}
+              </p>
+            </div>
+          </div>
+
+          {isCurrentView ? (
+            status === 'ended' ? (
+              <div className="flex flex-col gap-3">
+                {auction && !auction.settled ? (
                   <button
                     type="button"
                     onClick={onSettle}
                     disabled={buttonDisabled}
-                    className="inline-flex h-12 items-center justify-center rounded-[12px] bg-black px-6 text-base font-semibold text-white transition hover:scale-[1.01] hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/30"
+                    className="inline-flex h-12 items-center justify-center rounded-xl bg-black px-6 text-base font-semibold text-white transition hover:scale-[1.01] hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/30"
                   >
                     {isSettling
                       ? 'Settling...'
@@ -185,49 +221,58 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
                       : 'Start Next Auction'}
                   </button>
                 ) : (
-                  <>
-                    {!isConnected && onConnectWallet ? (
+                  <div className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                    Auction settled. Waiting for the next drop.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {!isConnected && onConnectWallet ? (
+                  <button
+                    type="button"
+                    onClick={onConnectWallet}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 text-base font-semibold text-white transition hover:shadow-lg hover:scale-[1.02]"
+                  >
+                    <Wallet className="w-5 h-5" />
+                    Connect Wallet to Bid
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="relative flex-1">
+                        <input
+                          className="w-full rounded-xl bg-gray-100 px-4 py-3 pr-16 text-base font-semibold text-gray-900 placeholder:text-gray-500 outline-none focus:ring-2 focus:ring-gray-900/10"
+                          placeholder={placeholderEth}
+                          inputMode="decimal"
+                          value={bidInput}
+                          onChange={(e) => setBidInput(e.target.value)}
+                          disabled={isEnded || !isConnected}
+                          aria-label="Bid amount in ETH"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-white/80 px-2 py-1 text-xs font-semibold text-gray-700 shadow">
+                          ETH
+                        </span>
+                      </div>
                       <button
                         type="button"
-                        onClick={onConnectWallet}
-                        className="inline-flex h-12 items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-blue-600 to-cyan-500 px-6 text-base font-semibold text-white transition hover:shadow-lg hover:scale-[1.02]"
+                        onClick={handleBidClick}
+                        disabled={isEnded || buttonDisabled || !bidInput}
+                        className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-black px-6 text-base font-semibold text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/30 sm:w-auto"
                       >
-                        <Wallet className="w-5 h-5" />
-                        Connect Wallet to Bid
+                        Place Bid
                       </button>
-                    ) : (
-                      <>
-                        <div className="flex w-full max-w-md items-center gap-2">
-                          <div className="relative flex-1">
-                            <input
-                              className="w-full rounded-[12px] border-2 border-black/10 bg-white px-4 py-3 pr-16 text-base outline-none focus:border-black placeholder:font-semibold"
-                              placeholder={placeholderEth}
-                              inputMode="decimal"
-                              value={bidInput}
-                              onChange={(e) => setBidInput(e.target.value)}
-                              disabled={isEnded || !isConnected}
-                              aria-label="Bid amount in ETH"
-                            />
-                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-[8px] border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-[#5a5a70]">
-                              ETH
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleBidClick}
-                            disabled={isEnded || buttonDisabled || !bidInput}
-                            className="inline-flex h-12 items-center justify-center rounded-[12px] bg-black px-6 text-base font-semibold text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/30"
-                          >
-                            Place Bid
-                          </button>
-                        </div>
-                      </>
+                    </div>
+                    {minRequiredWei && (
+                      <p className="text-xs text-gray-500">
+                        Minimum bid: {formatEth(minRequiredWei, 3)} ETH
+                      </p>
                     )}
-                  </>
+                  </div>
                 )}
-              </>
-            ) : null}
-          </div>
+              </div>
+            )
+          ) : null}
         </div>
       </div>
     </section>
@@ -235,4 +280,3 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
 };
 
 export default AuctionHero;
-

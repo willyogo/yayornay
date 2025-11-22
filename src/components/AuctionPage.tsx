@@ -215,7 +215,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     }
   }, [activeAuction]);
 
-  const backgroundHex = '#f0f0ff'; // Default background color
   const isAuctionActive = status === 'active';
   const canBid = isConnected && isAuctionActive && !settled && auction !== undefined && isCurrentView;
 
@@ -412,7 +411,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
             isConnected={isConnected}
             onConnectWallet={handleConnectWallet}
             dateLabel={dateLabel}
-            backgroundHex={backgroundHex}
             minRequiredWei={isCurrentView ? minRequiredWei : undefined}
             onPlaceBid={canBid ? handleBidSubmit : undefined}
             isCurrentView={isCurrentView}
