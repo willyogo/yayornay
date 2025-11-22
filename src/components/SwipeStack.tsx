@@ -406,7 +406,8 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
   return (
     <div className="flex-1 flex flex-col bg-white">
-      <div className="flex-1 relative max-w-md w-full mx-auto p-4 min-h-[520px]">
+      <div className="flex-1 relative max-w-md w-full mx-auto p-4 flex flex-col justify-center">
+        <div className="relative w-full">
         {visibleProposals.map((proposal, idx) => {
           const isTopCard = idx === 0;
           const transform = isTopCard
@@ -424,7 +425,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
             <div
               key={proposal.id}
               ref={isTopCard ? cardRef : undefined}
-              className={`absolute inset-0 ${isTopCard ? 'z-10 w-full h-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing' : 'z-0 w-full h-full pointer-events-none'}`}
+              className={`${isTopCard ? 'relative z-10 w-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing' : 'absolute top-0 left-0 right-0 z-0 w-full pointer-events-none'}`}
               style={{
                 transform,
                 transition,
@@ -451,7 +452,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
                   : undefined
               }
             >
-              <div className="card-content relative w-full h-full cursor-grab active:cursor-grabbing">
+              <div className="card-content relative w-full cursor-grab active:cursor-grabbing">
                 <ProposalCard proposal={proposal} />
               </div>
 
@@ -475,6 +476,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
             </div>
           );
         })}
+        </div>
       </div>
 
       <div className="flex flex-col items-center gap-4 p-8">

@@ -162,19 +162,78 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
 
   return (
     <div
-      className="absolute inset-0 cursor-grab active:cursor-grabbing"
+      className="relative w-full cursor-grab active:cursor-grabbing"
       style={{ opacity: 1, filter: 'none' }}
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
     >
-      <div className="relative w-full h-full [perspective:2000px]">
+      <div className="relative w-full [perspective:2000px]">
         <div
-          className="relative w-full h-full transition-transform duration-700 ease-[cubic-bezier(.22,.61,.36,1)] [transform-style:preserve-3d]"
+          className="relative w-full transition-transform duration-700 ease-[cubic-bezier(.22,.61,.36,1)] [transform-style:preserve-3d]"
           style={{ transform: `rotateY(${rotation}deg)` }}
         >
-          <div className="absolute inset-0 bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden] min-h-[520px]">
+          <div className="relative w-full bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden]">
             <div
-              className="relative flex-[3] min-h-[260px] bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer isolate overflow-hidden"
+              className="flex flex-col"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFlipState('profile');
+              }}
+            >
+              <div className="px-6 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
+                  <img
+                    src={getAvatarUrl(proposal.creator_username || proposal.creator_address)}
+                    alt={proposal.creator_username || 'Creator'}
+                    className="w-full h-full object-cover opacity-100 mix-blend-normal"
+                    style={{ filter: 'none', opacity: 1 }}
+                    draggable={false}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
+                    {displayData.displayName || proposal.creator_username || (
+                      <EnsName address={proposal.creator_address} className="text-2xl font-bold text-gray-900" />
+                    )}
+                  </h2>
+                  {coinData && (
+                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {displayData.holders} holders
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 pt-0 pb-2 flex flex-col justify-between cursor-pointer hover:bg-gray-50 transition-colors">
+                <h3 className="text-base font-semibold text-gray-900 line-clamp-2 mb-2">
+                  {proposal.title}
+                </h3>
+
+                {proposal.status === 'pending' ? (
+                  <div className="flex items-center justify-center py-6">
+                    <CountdownTimer
+                      targetDate={proposal.vote_start || proposal.created_at}
+                      onComplete={() => {
+                        // Optionally trigger a refetch when voting opens
+                        window.location.reload();
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <StatsGrid
+                    marketCap={displayData.marketCap}
+                    holders={displayData.holders}
+                    volume24h={displayData.volume24h}
+                    change24h={displayData.change24h}
+                    variant="compact"
+                  />
+                )}
+              </div>
+            </div>
+
+            <div
+              className="relative bg-white cursor-pointer isolate overflow-hidden"
               onClick={(e) => {
                 e.stopPropagation();
                 setFlipState('feed');
@@ -187,7 +246,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 </div>
               )}
               <div
-                className="h-full w-full p-3 grid grid-cols-2 grid-rows-2 gap-2"
+                className="w-full px-5 pt-2 pb-5 grid grid-cols-2 auto-rows-fr gap-3"
                 aria-hidden="true"
               >
                 {gridCoins.map((coin, idx) => {
@@ -221,80 +280,16 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 );})}
               </div>
 
-              <div
-                className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/15 to-transparent pointer-events-none"
-                aria-hidden="true"
-              />
-
               {loading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100/70 z-30">
                   <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
             </div>
-
-            <div
-              className="flex-1 flex flex-col"
-              onClick={(e) => {
-                e.stopPropagation();
-                setFlipState('profile');
-              }}
-            >
-              <div className="px-6 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors">
-                <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
-                  <img
-                    src={getAvatarUrl(proposal.creator_username || proposal.creator_address)}
-                    alt={proposal.creator_username || 'Creator'}
-                    className="w-full h-full object-cover opacity-100 mix-blend-normal"
-                    style={{ filter: 'none', opacity: 1 }}
-                    draggable={false}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
-                    {displayData.displayName || proposal.creator_username || (
-                      <EnsName address={proposal.creator_address} className="text-2xl font-bold text-gray-900" />
-                    )}
-                  </h2>
-                  {coinData && (
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {displayData.holders} holders
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-[2] p-5 flex flex-col justify-between min-h-[180px] pt-0 cursor-pointer hover:bg-gray-50 transition-colors">
-                <h3 className="text-base font-semibold text-gray-900 line-clamp-2 mb-2">
-                  {proposal.title}
-                </h3>
-
-                {proposal.status === 'pending' ? (
-                  <div className="flex items-center justify-center py-6">
-                    <CountdownTimer
-                      targetDate={proposal.vote_start || proposal.created_at}
-                      onComplete={() => {
-                        // Optionally trigger a refetch when voting opens
-                        window.location.reload();
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <StatsGrid
-                    marketCap={displayData.marketCap}
-                    holders={displayData.holders}
-                    volume24h={displayData.volume24h}
-                    change24h={displayData.change24h}
-                    variant="compact"
-                  />
-                )}
-              </div>
-            </div>
           </div>
 
           <div
-            className="absolute inset-0 bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden] min-h-[520px]"
+            className="absolute inset-0 bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden]"
             style={{ transform: 'rotateY(180deg)' }}
           >
             {flipState === 'feed' ? (
