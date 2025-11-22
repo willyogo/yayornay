@@ -12,18 +12,10 @@ interface ProposalCardProps {
 export function ProposalCard({ proposal, onDetailClick }: ProposalCardProps) {
   const [imageError, setImageError] = useState(false);
   
-  console.log('🎴 [ProposalCard] Rendering card for:', proposal.creator_username || proposal.creator_address);
-  
   // Fetch real Zora coin data
   const { coinData, loading, contentCoins } = useZoraCoin(
     proposal.creator_username || proposal.creator_address
   );
-
-  console.log('🎴 [ProposalCard] Hook state:', { 
-    hasCoinData: !!coinData, 
-    loading,
-    coinName: coinData?.name
-  });
 
   // Fallback to mock data if no coin data available
   const displayData = coinData ? {
@@ -171,38 +163,19 @@ export function ProposalCard({ proposal, onDetailClick }: ProposalCardProps) {
             style={{ filter: 'none', opacity: 1 }}
             draggable={false}
           />
-        ) : !loading && (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-6xl font-bold text-gray-300">
-              {(proposal.creator_username || proposal.creator_address).slice(0, 2).toUpperCase()}
-            </div>
-          </div>
-        )}
-
-        <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-white shadow-lg">
-              <img
-                src={getAvatarUrl(proposal.creator_username || proposal.creator_address)}
-                alt={proposal.creator_username || 'Creator'}
-                className="w-full h-full object-cover"
-                draggable={false}
-              />
-            </div>
-            <div>
-              <h2 className="text-3xl font-bold mb-1">
-                {displayData.displayName || 
-                 proposal.creator_username || 
-                 `${proposal.creator_address.slice(0, 6)}...${proposal.creator_address.slice(-4)}`}
-              </h2>
-              {coinData && (
-                <p className="text-sm text-gray-300 flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  {displayData.holders} holders
-                </p>
-              )}
-            </div>
-          </div>
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
+            {displayData.displayName || 
+             proposal.creator_username || 
+             `${proposal.creator_address.slice(0, 6)}...${proposal.creator_address.slice(-4)}`}
+          </h2>
+          {coinData && (
+            <p className="text-sm text-gray-500 flex items-center gap-1">
+              <Users className="w-3 h-3" />
+              {displayData.holders} holders
+            </p>
+          )}
         </div>
       </div>
 
