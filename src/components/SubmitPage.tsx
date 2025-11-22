@@ -84,16 +84,26 @@ const DEBOUNCE_MS = 400;
 const DEFAULT_SUBMISSION_ENDPOINT = 'http://164.152.26.43/api/analyze';
 const SUBMISSION_ENDPOINT =
   import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_SUBMISSION_ENDPOINT;
-const CORS_PROXIES = ['https://corsproxy.io/?'];
+const CORS_PROXIES = [
+  // corsproxy.io expects the upstream URL to be URL-encoded
+  (endpoint: string) => `https://corsproxy.io/?${encodeURIComponent(endpoint)}`,
+  // allorigins works similarly and provides redundancy if the first proxy blocks the request
+  (endpoint: string) =>
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`,
+];
 
 function wrapIfHttpsPage(endpoint: string): string[] {
   const isHttp = endpoint.startsWith('http://');
   const isHttpsPage =
     typeof window !== 'undefined' && window.location.protocol === 'https:';
 
+  // Always include the raw endpoint so HTTP deployments can still call it directly.
+  // When the app runs over HTTPS, browsers will block direct HTTP requests, so we
+  // prepend HTTPS-friendly proxy variants to keep a working option.
   if (!isHttp || !isHttpsPage) return [endpoint];
 
-  return CORS_PROXIES.map((proxy) => `${proxy}${endpoint}`);
+  const proxied = CORS_PROXIES.map((proxyBuilder) => proxyBuilder(endpoint));
+  return [...proxied, endpoint];
 }
 
 function addEndpointWithVariants(endpoint: string, collector: Set<string>) {
