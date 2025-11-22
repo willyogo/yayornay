@@ -1,6 +1,5 @@
 import { useState, createContext, useContext, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
-import { TestTube } from 'lucide-react';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { LandingPage } from './components/LandingPage';
 import { AuctionPage } from './components/AuctionPage';
@@ -9,22 +8,29 @@ import { CreatorFeedModal } from './components/CreatorFeedModal';
 import { useProposals } from './hooks/useProposals';
 import { useVoting } from './hooks/useVoting';
 import { Proposal } from './lib/supabase';
+import { AppHeader } from './components/AppHeader';
 
 type View = 'landing' | 'auction';
+
+// Get test mode from URL query parameter
+const getTestModeFromURL = (): boolean => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('test') === 'true';
+};
 
 const TestModeContext = createContext<{
   testMode: boolean;
   setTestMode: (mode: boolean) => void;
 }>({
   testMode: false,
-  setTestMode: () => {},
+  setTestMode: () => {}, // No-op since test mode is now controlled by URL query parameter
 });
 
 export const useTestMode = () => useContext(TestModeContext);
 
 function App() {
   const { isConnected, address } = useAccount();
-  const [testMode, setTestMode] = useState(false);
+  const [testMode] = useState(() => getTestModeFromURL());
   const [view, setView] = useState<View>('landing');
   const { proposals, loading } = useProposals(testMode);
   const { submitVote } = useVoting();
@@ -67,11 +73,14 @@ function App() {
 
   if (!isConnected) {
     return (
-      <TestModeContext.Provider value={{ testMode, setTestMode }}>
+      <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
         {view === 'landing' ? (
           <LandingPage onBecomeVoter={() => setView('auction')} />
         ) : (
-          <AuctionPage onBack={() => setView('landing')} />
+          <AuctionPage
+            onSelectView={setView}
+            currentView={view}
+          />
         )}
       </TestModeContext.Provider>
     );
@@ -91,50 +100,19 @@ function App() {
   // Show auction page if view is set to auction
   if (view === 'auction') {
     return (
-      <TestModeContext.Provider value={{ testMode, setTestMode }}>
-        <AuctionPage onBack={() => setView('landing')} />
+      <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
+        <AuctionPage
+          onSelectView={setView}
+          currentView={view}
+        />
       </TestModeContext.Provider>
     );
   }
 
   return (
-    <TestModeContext.Provider value={{ testMode, setTestMode }}>
+    <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <header className="bg-white border-b border-gray-200 p-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <img 
-                src="/.well-known/logo.png" 
-                alt="YAYNAY Logo" 
-                className="w-10 h-10 object-contain"
-              />
-            </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setView('auction')}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all bg-blue-500 text-white hover:bg-blue-600"
-              >
-                <span>🏛️</span>
-                Auction
-              </button>
-              <button
-                onClick={() => setTestMode(!testMode)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
-                  testMode
-                    ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                }`}
-              >
-                <TestTube className="w-4 h-4" />
-                {testMode ? 'Test Mode' : 'Test Mode'}
-              </button>
-              <div className="text-sm text-gray-600">
-                {proposals.length} active proposals
-              </div>
-            </div>
-          </div>
-        </header>
+        <AppHeader view={view} onChange={setView} />
 
         <SwipeStack
           proposals={proposals}

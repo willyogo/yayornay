@@ -1,22 +1,23 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { useAccount, useWriteContract, useConnect } from 'wagmi';
 import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
 import { config } from '../lib/wagmi';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { parseEther, formatEther } from 'viem';
+import { parseEther } from 'viem';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
 import AuctionHero from './AuctionHero';
 import BidModal from './BidModal';
 import { getAuctionStatus } from '../utils/auction';
 import { fetchAuctionById, isSubgraphConfigured } from '../lib/subgraph';
+import { AppHeader } from './AppHeader';
 
 interface AuctionPageProps {
-  onBack: () => void;
+  onSelectView: (view: 'landing' | 'auction') => void;
+  currentView: 'landing' | 'auction';
 }
 
 const publicClient = createPublicClient({
@@ -24,7 +25,7 @@ const publicClient = createPublicClient({
   transport: http(),
 });
 
-export function AuctionPage({ onBack }: AuctionPageProps) {
+export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   const { isConnected, address, chainId } = useAccount();
   const { connect, connectors } = useConnect();
   const {
@@ -396,99 +397,94 @@ export function AuctionPage({ onBack }: AuctionPageProps) {
   }, [auction, attemptSettle, isConnected, refetch]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-      <div className="max-w-6xl mx-auto p-6">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back</span>
-        </button>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <AppHeader view={currentView} onChange={onSelectView} />
 
-        <AuctionHero
-          auction={activeAuction}
-          countdownMs={displayCountdown}
-          onOpenBid={handleOpenBid}
-          onSettle={handleSettle}
-          isSettling={isSettling}
-          isConnected={isConnected}
-          onConnectWallet={handleConnectWallet}
-          dateLabel={dateLabel}
-          backgroundHex={backgroundHex}
-          minRequiredWei={isCurrentView ? minRequiredWei : undefined}
-          onPlaceBid={canBid ? handleBidSubmit : undefined}
-          isCurrentView={isCurrentView}
-          onPrev={handlePrev}
-          onNext={handleNext}
-          canGoNext={canGoNext}
-          currentWalletAddress={address}
-        />
-
-              {/* Info Cards */}
-              <div className="grid md:grid-cols-3 gap-6 mt-8">
-          <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50">
-            <div className="text-2xl mb-2">🏆</div>
-            <h3 className="font-semibold text-white mb-2">Own an NFT</h3>
-            <p className="text-sm text-gray-400">
-              Win the auction to own a unique NFT with voting power
-            </p>
-          </div>
-
-          <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50">
-            <div className="text-2xl mb-2">🗳️</div>
-            <h3 className="font-semibold text-white mb-2">Vote on Proposals</h3>
-            <p className="text-sm text-gray-400">
-              Use your NFT to vote on creator coin purchase proposals
-            </p>
-          </div>
-
-          <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700/50">
-            <div className="text-2xl mb-2">💰</div>
-            <h3 className="font-semibold text-white mb-2">Support the DAO</h3>
-            <p className="text-sm text-gray-400">
-              Auction proceeds go directly to the DAO treasury
-            </p>
-          </div>
-        </div>
-
-        {bidModalOpen && auction && (
-          <BidModal
-            isOpen={bidModalOpen}
-            nounId={auction.nounId}
-            currentAmount={auction.amount}
-            minRequiredWei={minRequiredWei}
-            onDismiss={() => {
-              setBidModalOpen(false);
-              setActionError(null);
-            }}
-            onConfirm={handleBidSubmit}
-            isSubmitting={bidSubmitting}
-            errorMessage={actionError ?? undefined}
+      <main className="flex-1">
+        <div className="max-w-7xl mx-auto p-6 md:p-10">
+          <AuctionHero
+            auction={activeAuction}
+            countdownMs={displayCountdown}
+            onOpenBid={handleOpenBid}
+            onSettle={handleSettle}
+            isSettling={isSettling}
+            isConnected={isConnected}
+            onConnectWallet={handleConnectWallet}
+            dateLabel={dateLabel}
+            backgroundHex={backgroundHex}
+            minRequiredWei={isCurrentView ? minRequiredWei : undefined}
+            onPlaceBid={canBid ? handleBidSubmit : undefined}
+            isCurrentView={isCurrentView}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            canGoNext={canGoNext}
+            currentWalletAddress={address}
           />
-        )}
 
-        {(actionMessage || actionError || txHash) && (
-          <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm shadow-sm">
-            {actionMessage && <p className="font-medium">{actionMessage}</p>}
-            {actionError && <p className="text-red-600">{actionError}</p>}
-            {txHash && (
-              <p className="text-xs text-muted-foreground">
-                Tx hash:{' '}
-                <a
-                  href={`https://sepolia.basescan.org/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  {txHash.slice(0, 10)}...
-                </a>
+          {/* Info Cards */}
+          <div className="grid md:grid-cols-3 gap-6 mt-8">
+            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+              <div className="text-2xl mb-2">🏆</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Own an NFT</h3>
+              <p className="text-sm text-gray-600">
+                Win the auction to own a unique NFT with voting power
               </p>
-            )}
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+              <div className="text-2xl mb-2">🗳️</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Vote on Proposals</h3>
+              <p className="text-sm text-gray-600">
+                Use your NFT to vote on creator coin purchase proposals
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+              <div className="text-2xl mb-2">💰</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Support the DAO</h3>
+              <p className="text-sm text-gray-600">
+                Auction proceeds go directly to the DAO treasury
+              </p>
+            </div>
           </div>
-        )}
-      </div>
+
+          {bidModalOpen && auction && (
+            <BidModal
+              isOpen={bidModalOpen}
+              nounId={auction.nounId}
+              currentAmount={auction.amount}
+              minRequiredWei={minRequiredWei}
+              onDismiss={() => {
+                setBidModalOpen(false);
+                setActionError(null);
+              }}
+              onConfirm={handleBidSubmit}
+              isSubmitting={bidSubmitting}
+              errorMessage={actionError ?? undefined}
+            />
+          )}
+
+          {(actionMessage || actionError || txHash) && (
+            <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm shadow-sm">
+              {actionMessage && <p className="font-medium">{actionMessage}</p>}
+              {actionError && <p className="text-red-600">{actionError}</p>}
+              {txHash && (
+                <p className="text-xs text-muted-foreground">
+                  Tx hash:{' '}
+                  <a
+                    href={`https://sepolia.basescan.org/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {txHash.slice(0, 10)}...
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
-
