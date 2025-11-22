@@ -25,6 +25,7 @@ The client application uses React for UI rendering, Wagmi for blockchain interac
 
 ### Backend Services
 - Supabase hosts a PostgreSQL database with Row Level Security enabled
+- Builder DAO Subgraph provides GraphQL API for auction and proposal data (subgraph-first approach)
 - Zora ZDK provides a GraphQL API client for fetching creator data
 - Coinbase Developer Platform provides the RPC endpoint for Base blockchain
 
@@ -57,7 +58,49 @@ SwipeStack uses the Pointer Capture API for gesture control, which provides prec
 
 Test mode is managed through React Context because it's needed across multiple components: App controls it, LandingPage displays the toggle, and SwipeStack uses it to skip actual vote submission.
 
-The application uses Supabase as an intermediary database rather than querying the blockchain directly. This provides faster reads through indexed queries, enables vote history tracking, stores proposal metadata, and uses Row Level Security for access control. The trade-off is that data must be synced between the blockchain and database.
+The application uses a **subgraph-first approach** for data fetching. For auctions and proposals, the app queries Builder DAO subgraphs first (faster, includes historical data), then falls back to contract reads or Supabase queries if subgraph is unavailable. This provides faster reads, reduces on-chain query load, and enables historical data access.
+
+The application uses Supabase as an intermediary database for proposals and votes rather than querying the blockchain directly. This provides faster reads through indexed queries, enables vote history tracking, stores proposal metadata, and uses Row Level Security for access control. The trade-off is that data must be synced between the blockchain and database.
+
+## Configuration Management
+
+All application-wide constants are centralized in `src/config/constants.ts`:
+
+### Chain Configuration
+```typescript
+export const CHAIN_CONFIG = {
+  ID: 84532, // Base Sepolia testnet
+  NAME: 'base-sepolia',
+  DISPLAY_NAME: 'Base Sepolia',
+  RPC_URL: 'https://sepolia.base.org',
+  BLOCK_EXPLORER_URL: 'https://sepolia.basescan.org',
+} as const;
+```
+
+### Contract Addresses
+```typescript
+export const CONTRACTS = {
+  NFT: '0x626FbB71Ca4FE65F94e73AB842148505ae1a0B26',
+  AUCTION_HOUSE: '0xe9609Fb710bDC6f88Aa5992014a156aeb31A6896',
+  GOVERNOR: '0x9F530c7bCdb859bB1DcA3cD4EAE644f973A5f505',
+  TREASURY: '0x3ed26c1d23Fd4Ea3B5e2077B60B4F1EC80Aba94f',
+  METADATA: '0x82ACd8e6ea567d99B63fcFc21ec824b5D05C9744',
+} as const;
+```
+
+### DAO Address
+```typescript
+export const DAO_ADDRESS = '0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17' as const;
+```
+
+**Benefits of Centralized Constants:**
+- Single source of truth for all configuration
+- Easy to update contract addresses or chain settings
+- Type-safe constants with `as const`
+- Exported as `CONSTANTS` object for convenience
+- Used throughout the application (Wagmi config, hooks, components)
+
+**Contract ABIs** are defined in `src/config/contracts.ts`, which re-exports `CONTRACTS` from constants for backward compatibility.
 
 ## File Structure
 

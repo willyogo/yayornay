@@ -21,12 +21,19 @@ export function useAuction() {
         const sg = await fetchLatestAuction();
         if (!mounted) return;
         if (sg) {
+          // Use winningBid for settled auctions, highestBid for active auctions
+          const bidAmount = sg.winningBid?.amount ?? sg.highestBid?.amount ?? '0';
+          const bidderAddress = sg.winningBid?.bidder ?? sg.highestBid?.bidder ?? '0x0000000000000000000000000000000000000000';
+          
+          // Parse the subgraph ID format: "daoAddress:tokenId"
+          const tokenId = sg.id.includes(':') ? sg.id.split(':')[1] : sg.id;
+          
           setSubgraphAuction({
-            nounId: BigInt(sg.id),
-            amount: BigInt(sg.amount),
+            nounId: BigInt(tokenId),
+            amount: BigInt(bidAmount),
             startTime: BigInt(sg.startTime),
             endTime: BigInt(sg.endTime),
-            bidder: (sg.bidder?.id ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+            bidder: bidderAddress as `0x${string}`,
             settled: Boolean(sg.settled),
           });
         }
@@ -167,12 +174,19 @@ export function useAuction() {
         try {
           const sg = await fetchLatestAuction();
           if (sg) {
+            // Use winningBid for settled auctions, highestBid for active auctions
+            const bidAmount = sg.winningBid?.amount ?? sg.highestBid?.amount ?? '0';
+            const bidderAddress = sg.winningBid?.bidder ?? sg.highestBid?.bidder ?? '0x0000000000000000000000000000000000000000';
+            
+            // Parse the subgraph ID format: "daoAddress:tokenId"
+            const tokenId = sg.id.includes(':') ? sg.id.split(':')[1] : sg.id;
+            
             setSubgraphAuction({
-              nounId: BigInt(sg.id),
-              amount: BigInt(sg.amount),
+              nounId: BigInt(tokenId),
+              amount: BigInt(bidAmount),
               startTime: BigInt(sg.startTime),
               endTime: BigInt(sg.endTime),
-              bidder: (sg.bidder?.id ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+              bidder: bidderAddress as `0x${string}`,
               settled: Boolean(sg.settled),
             });
           }

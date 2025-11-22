@@ -22,9 +22,132 @@ This hook handles wallet connection. It provides a connect function that takes a
 
 This hook handles wallet disconnection. It provides a disconnect function that the WalletConnect component calls when the user wants to disconnect.
 
+### useReadContract
+
+This hook reads data from smart contracts. It provides reactive contract reads that automatically refetch when dependencies change.
+
+**Usage in `useAuction` hook:**
+```typescript
+const { data: auctionData, isLoading, error, refetch } = useReadContract({
+  address: CONTRACTS.AUCTION_HOUSE,
+  abi: AUCTION_HOUSE_ABI,
+  functionName: 'auction',
+  query: {
+    refetchInterval: 15000, // Refetch every 15 seconds
+  },
+});
+```
+
+**Common Contract Reads:**
+- `auction()` - Current auction state (nounId, amount, startTime, endTime, bidder, settled)
+- `reservePrice()` - Minimum bid amount
+- `minBidIncrementPercentage()` - Minimum percentage increase for new bids
+- `duration()` - Auction duration in seconds
+- `getSettlements(startId, endId, skipEmptyValues)` - Historical auction settlement data
+
+**Returns:**
+- `data` - The contract function return value (typed based on ABI)
+- `isLoading` - Boolean indicating if the read is in progress
+- `error` - Error object if the read failed
+- `refetch` - Function to manually refetch the data
+
+**Contract Addresses:**
+All contract addresses are centralized in `src/config/constants.ts`:
+- `CONTRACTS.AUCTION_HOUSE` - Auction house contract
+- `CONTRACTS.NFT` - NFT contract
+- `CONTRACTS.GOVERNOR` - Governor contract
+- `CONTRACTS.TREASURY` - Treasury contract
+- `CONTRACTS.METADATA` - Metadata contract
+
+### useWriteContract
+
+This hook writes data to smart contracts (sends transactions). It provides functions for submitting transactions and tracking their status.
+
+**Usage in `AuctionPage` for bidding:**
+```typescript
+const { writeContractAsync } = useWriteContract();
+
+// Place a bid
+const hash = await writeContractAsync({
+  address: CONTRACTS.AUCTION_HOUSE,
+  abi: AUCTION_HOUSE_ABI,
+  functionName: 'createBid',
+  args: [auction.nounId],
+  value: valueWei, // Bid amount in wei
+});
+```
+
+**Usage in `AuctionPage` for settlement:**
+```typescript
+// Settle auction
+const hash = await writeContractAsync({
+  address: CONTRACTS.AUCTION_HOUSE,
+  abi: AUCTION_HOUSE_ABI,
+  functionName: 'settleAuction', // or 'settleCurrentAndCreateNewAuction'
+  args: [],
+});
+```
+
+**Transaction Simulation:**
+Before submitting transactions, the app uses `simulateContract` from `wagmi/actions` to validate the transaction:
+
+```typescript
+import { simulateContract } from 'wagmi/actions';
+
+// Simulate first
+const simulation = await simulateContract(config, {
+  address: CONTRACTS.AUCTION_HOUSE,
+  abi: AUCTION_HOUSE_ABI,
+  functionName: 'createBid',
+  args: [auction.nounId],
+  value: valueWei,
+  account: address!,
+});
+
+// Then submit
+const hash = await writeContractAsync(simulation.request);
+```
+
+**Transaction Receipt:**
+After submitting, wait for transaction receipt:
+
+```typescript
+import { waitForTransactionReceipt } from 'wagmi/actions';
+
+const receipt = await waitForTransactionReceipt(config, {
+  hash,
+  timeout: 60_000,
+});
+
+if (receipt.status === 'success') {
+  // Transaction succeeded
+}
+```
+
+**Returns:**
+- `writeContract` - Function to write contract (returns hash immediately)
+- `writeContractAsync` - Async function that returns transaction hash
+- `isPending` - Boolean indicating if transaction is pending
+- `isSuccess` - Boolean indicating if transaction succeeded
+- `isError` - Boolean indicating if transaction failed
+- `error` - Error object if transaction failed
+- `data` - Transaction hash if successful
+
 ## Chain Configuration
 
-The application is configured to use Base Sepolia testnet. The chain ID is 84532, and the RPC endpoint uses the public Base Sepolia RPC or can be configured via environment variable.
+The application is configured to use Base Sepolia testnet. Chain configuration is centralized in `src/config/constants.ts`:
+
+```typescript
+export const CHAIN_CONFIG = {
+  ID: 84532, // Base Sepolia testnet
+  NAME: 'base-sepolia',
+  DISPLAY_NAME: 'Base Sepolia',
+  RPC_URL: 'https://sepolia.base.org',
+  BLOCK_EXPLORER_URL: 'https://sepolia.basescan.org',
+} as const;
+```
+
+The RPC endpoint can be overridden via `VITE_BASE_SEPOLIA_RPC_URL` environment variable, but defaults to `CHAIN_CONFIG.RPC_URL`.
 
 ## Connector Configuration
 
@@ -47,6 +170,25 @@ Connection errors are available through the error property returned by useConnec
 ## Current Implementation Details
 
 The application checks wallet connection before allowing actions. The useVoting hook throws an error if no address is available. Addresses are always lowercased for consistency when storing in the database. There is no chain switching logic currently - the app assumes users are on Base Sepolia testnet.
+
+### Contract Interaction Patterns
+
+**Reading Contract Data:**
+- `useAuction` hook uses `useReadContract` to read auction state
+- Multiple contract reads are combined to get complete auction information
+- Subgraph is preferred, but contract reads serve as fallback
+
+**Writing Contract Data:**
+- `AuctionPage` uses `useWriteContract` for bidding and settlement
+- Transactions are simulated before submission to catch errors early
+- Transaction receipts are awaited to confirm success
+- Transaction hashes are displayed with block explorer links
+
+**Error Handling:**
+- Contract read errors are caught and logged
+- Write errors are displayed to users via error messages
+- Failed transactions show error details
+- Simulation failures trigger fallback to direct write
 
 ## Related Documentation
 

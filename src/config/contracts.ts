@@ -1,11 +1,5 @@
-// Builder DAO contracts on Base Mainnet
-export const CONTRACTS = {
-  NFT: '0x3740fea2a46ca4414b4afde16264389642e6596a',
-  AUCTION_HOUSE: '0x14227ed5dd596e3a63773933ba68014ed3cfb7e5',
-  GOVERNOR: '0x2ff7852a23e408cb6b7ba5c89384672eb88dab2e',
-  TREASURY: '0x72b052a9a830001ce202ad907e6eedd0b86c4a88',
-  METADATA: '0x47887fc1e456531765ecad1ae20b762f59ae6cf9',
-} as const;
+// Re-export contracts from constants for backward compatibility
+export { CONTRACTS } from './constants';
 
 // Nouns Builder Auction House ABI (minimal functions needed)
 export const AUCTION_HOUSE_ABI = [
@@ -106,6 +100,6 @@ export interface Auction {
   settled: boolean;
 }
 
-// Re-export GovernorABI from the SDK
-export { GovernorABI } from '@buildersdk/sdk';
+// Re-export governorAbi from the SDK as GovernorABI for backward compatibility
+export { governorAbi as GovernorABI } from '@buildeross/sdk';
 

@@ -3,6 +3,7 @@ import { TrendingUp, TrendingDown, Users, DollarSign, ArrowLeft, ExternalLink, L
 import { Proposal } from '../lib/supabase';
 import { useZoraCoin } from '../hooks/useZoraCoin';
 import { formatCurrency, calculate24hChange } from '../lib/zora';
+import { EnsName } from './EnsName';
 
 interface ProposalCardProps {
   proposal: Proposal;
@@ -243,9 +244,9 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
-                    {displayData.displayName || 
-                     proposal.creator_username || 
-                     `${proposal.creator_address.slice(0, 6)}...${proposal.creator_address.slice(-4)}`}
+                    {displayData.displayName || proposal.creator_username || (
+                      <EnsName address={proposal.creator_address} className="text-2xl font-bold text-gray-900" />
+                    )}
                   </h2>
                   {coinData && (
                     <p className="text-sm text-gray-500 flex items-center gap-1">
@@ -315,7 +316,9 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-white/90 backdrop-blur-sm">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-gray-400">Content feed</p>
-                    <p className="text-sm font-semibold text-gray-800">{creatorLabel}'s coins</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {proposal.creator_username || <EnsName address={proposal.creator_address} />}'s coins
+                    </p>
                   </div>
                   <button
                     className="inline-flex items-center gap-2 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors"
@@ -410,7 +413,9 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-gray-400">Creator</p>
-                    <p className="text-sm font-semibold text-gray-800">{creatorLabel}</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {proposal.creator_username || <EnsName address={proposal.creator_address} />}
+                    </p>
                   </div>
                   <button
                     className="inline-flex items-center gap-2 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors"
@@ -446,8 +451,11 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                         <h3 className="text-2xl font-bold text-gray-900 mb-1">
                           {coinData.name}
                         </h3>
-                        <p className="text-sm text-gray-500 mb-2">
+                        <p className="text-sm text-gray-500 mb-1">
                           {coinData.symbol ? `$${coinData.symbol}` : creatorLabel}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          <EnsName address={proposal.creator_address} className="text-xs text-gray-400" />
                         </p>
                         {displayData.bio && (
                           <p className="text-sm text-gray-600 leading-relaxed">

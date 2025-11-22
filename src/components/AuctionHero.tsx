@@ -6,6 +6,8 @@ import { parseEther } from 'viem';
 import NounImage from './NounImage';
 import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
 import type { Auction } from '../config/contracts';
+import { EnsName } from './EnsName';
+import { useNftName } from '../hooks/useNftName';
 
 interface AuctionHeroProps {
   auction?: Auction;
@@ -46,12 +48,10 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   canGoPrev = true,
   currentWalletAddress,
 }) => {
+  const { name: nftCollectionName, isLoading: isLoadingName } = useNftName();
   const status = getAuctionStatus(auction);
   const nounId = auction ? Number(auction.nounId) : undefined;
-  const bidderLabel =
-    auction && auction.bidder !== ZERO_ADDRESS
-      ? `${auction.bidder.slice(0, 6)}...${auction.bidder.slice(-4)}`
-      : 'No bids yet';
+  const hasBids = auction && auction.bidder !== ZERO_ADDRESS;
   const countdownLabel = formatCountdown(countdownMs);
   const etherLabel = auction ? formatEth(auction.amount, 3) : 'Loading';
   const isEnded = status === 'ended';
@@ -144,7 +144,7 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-wide text-gray-500">Auction</p>
               <h1 className="text-3xl font-bold text-gray-900">
-                {nounId !== undefined ? `Noun ${nounId}` : 'Loading'}
+                {nounId !== undefined ? `${nftCollectionName} #${nounId}` : 'Loading'}
               </h1>
               <p className="text-sm text-gray-500">{dateLabel || '—'}</p>
             </div>
@@ -162,18 +162,22 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-gray-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">
-                {isCurrentView ? 'Current bid' : 'Winning bid'}
-              </p>
-              <p className="mt-1 text-2xl font-bold text-gray-900">{etherLabel}</p>
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-2xl bg-gray-50 px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">
                 {isCurrentView ? 'Highest bidder' : 'Winning bidder'}
               </p>
-              <p className="mt-1 text-base font-semibold text-gray-900">{bidderLabel}</p>
+              <p className="mt-1 text-base font-semibold text-gray-900">
+                {hasBids ? (
+                  <EnsName address={auction.bidder} className="text-base font-semibold text-gray-900" />
+                ) : (
+                  'No bids yet'
+                )}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-gray-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Current bid</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{etherLabel}</p>
             </div>
             <div className="rounded-2xl bg-gray-50 px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">
@@ -193,20 +197,42 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
             status === 'ended' ? (
               <div className="flex flex-col gap-3">
                 {auction && !auction.settled ? (
-                  <button
-                    type="button"
-                    onClick={onSettle}
-                    disabled={buttonDisabled}
-                    className="inline-flex h-12 items-center justify-center rounded-xl bg-black px-6 text-base font-semibold text-white transition hover:scale-[1.01] hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/30"
-                  >
-                    {isSettling
-                      ? 'Settling...'
-                      : currentWalletAddress &&
-                        auction.bidder &&
-                        currentWalletAddress.toLowerCase() === auction.bidder.toLowerCase()
-                      ? 'Claim NFT'
-                      : 'Start Next Auction'}
-                  </button>
+                  <>
+                    {/* Debug info for settle button */}
+                    <div className="rounded-2xl border-2 border-yellow-300 bg-yellow-50 px-4 py-3 text-xs font-mono">
+                      <p className="font-semibold text-yellow-900 mb-2">Settle Button Debug:</p>
+                      <div className="space-y-1 text-yellow-800">
+                        <p>currentWalletAddress: {currentWalletAddress || 'null/undefined'}</p>
+                        <p>auction.bidder: {auction.bidder || 'null/undefined'}</p>
+                        <p>currentWalletAddress (lowercase): {currentWalletAddress?.toLowerCase() || 'N/A'}</p>
+                        <p>auction.bidder (lowercase): {auction.bidder?.toLowerCase() || 'N/A'}</p>
+                        <p className="font-semibold">
+                          Match: {currentWalletAddress && auction.bidder && currentWalletAddress.toLowerCase() === auction.bidder.toLowerCase() ? '✅ TRUE' : '❌ FALSE'}
+                        </p>
+                        <p>Button text will be: {
+                          currentWalletAddress &&
+                          auction.bidder &&
+                          currentWalletAddress.toLowerCase() === auction.bidder.toLowerCase()
+                            ? 'Claim NFT'
+                            : 'Start Next Auction'
+                        }</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onSettle}
+                      disabled={buttonDisabled}
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-black px-6 text-base font-semibold text-white transition hover:scale-[1.01] hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/30"
+                    >
+                      {isSettling
+                        ? 'Settling...'
+                        : currentWalletAddress &&
+                          auction.bidder &&
+                          currentWalletAddress.toLowerCase() === auction.bidder.toLowerCase()
+                        ? 'Claim NFT'
+                        : 'Start Next Auction'}
+                    </button>
+                  </>
                 ) : (
                   <div className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
                     Auction settled. Waiting for the next drop.

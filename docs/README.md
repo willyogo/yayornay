@@ -16,13 +16,18 @@ Core architectural documentation and design decisions.
 Step-by-step guides for common tasks.
 
 - **[Development Setup](./guides/development.md)** - Local development environment setup
-- **[Deployment](./guides/deployment.md)** - How to deploy the application
 - **[Contributing](./guides/contributing.md)** - Contribution guidelines and workflow
+
+### [Features](./)
+Feature-specific documentation.
+
+- **[Nouns Auction Integration](./nouns-auction-integration.md)** - Auction integration details
 
 ### [API Reference](./api/)
 Documentation for external APIs and integrations.
 
 - **[Supabase](./api/supabase.md)** - Database client and queries
+- **[Subgraph](./api/subgraph.md)** - Builder DAO subgraph integration
 - **[Zora](./api/zora.md)** - Zora API integration
 - **[Wagmi](./api/wagmi.md)** - Blockchain integration (Wagmi/Viem)
 
