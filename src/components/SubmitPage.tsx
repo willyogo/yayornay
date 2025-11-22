@@ -81,25 +81,33 @@ const FALLBACK_DISPLAY = {
 };
 
 const DEBOUNCE_MS = 400;
-const DEFAULT_SUBMISSION_ENDPOINT = 'http://164.152.26.43/api/analyze';
+const DEFAULT_SUBMISSION_ENDPOINT = 'https://164.152.26.43/api/analyze';
 const SUBMISSION_ENDPOINT =
   import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_SUBMISSION_ENDPOINT;
-const CORS_PROXIES = [
-  // corsproxy.io expects the upstream URL to be URL-encoded
-  (endpoint: string) => `https://corsproxy.io/?${encodeURIComponent(endpoint)}`,
+
+type EndpointVariant = { url: string; headers?: Record<string, string> };
+
+const CORS_PROXIES: ((endpoint: string) => EndpointVariant)[] = [
+  // corsproxy.io expects the upstream URL to be URL-encoded and supports POST
+  (endpoint: string) => ({
+    url: `https://corsproxy.io/?${encodeURIComponent(endpoint)}`,
+  }),
   // isomorphic-git proxy supports HTTPS pages and relaxed SSL handling
-  (endpoint: string) => `https://cors.isomorphic-git.org/${endpoint}`,
+  (endpoint: string) => ({
+    url: `https://cors.isomorphic-git.org/${encodeURIComponent(endpoint)}`,
+  }),
   // thingproxy is lenient toward self-signed certificates while returning CORS headers
-  (endpoint: string) =>
-    `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(endpoint)}`,
-  // yacdn provides another HTTPS relay that can handle TLS quirks
-  (endpoint: string) => `https://yacdn.org/proxy/${endpoint}`,
-  // allorigins works similarly and provides redundancy if the first proxy blocks the request
-  (endpoint: string) =>
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`,
+  (endpoint: string) => ({
+    url: `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(endpoint)}`,
+  }),
+  // cors.sh explicitly supports POST with self-signed upstreams and requires a permissive API key header
+  (endpoint: string) => ({
+    url: `https://proxy.cors.sh/${endpoint}`,
+    headers: { 'x-cors-api-key': 'temp-key' },
+  }),
 ];
 
-function wrapIfHttpsPage(endpoint: string): string[] {
+function wrapIfHttpsPage(endpoint: string): EndpointVariant[] {
   const isHttp = endpoint.startsWith('http://');
   const isHttpsPage =
     typeof window !== 'undefined' && window.location.protocol === 'https:';
@@ -107,16 +115,24 @@ function wrapIfHttpsPage(endpoint: string): string[] {
   // Always include the raw endpoint so HTTP deployments can still call it directly.
   // When the app runs over HTTPS, browsers will block direct HTTP requests, so we
   // prepend HTTPS-friendly proxy variants to keep a working option.
-  if (!isHttp || !isHttpsPage) return [endpoint];
-
   const proxied = CORS_PROXIES.map((proxyBuilder) => proxyBuilder(endpoint));
-  // On HTTPS pages, avoid mixed-content rejections by only using HTTPS-friendly
-  // proxy URLs. We skip the raw HTTP endpoint so every attempted request remains
-  // HTTPS.
-  return proxied;
+
+  if (!isHttpsPage) {
+    return [{ url: endpoint }];
+  }
+
+  // For HTTPS pages hitting HTTP endpoints, only use the proxies to avoid mixed-content.
+  if (isHttp) return proxied;
+
+  // For HTTPS upstreams (including those with self-signed certs), try the raw endpoint
+  // first, then fall back to proxies that may ignore TLS validation.
+  return [{ url: endpoint }, ...proxied];
 }
 
-function addEndpointWithVariants(endpoint: string, collector: Set<string>) {
+function addEndpointWithVariants(
+  endpoint: string,
+  collector: Map<string, EndpointVariant>
+) {
   const variants = [endpoint];
 
   if (endpoint.startsWith('https://')) {
@@ -127,15 +143,15 @@ function addEndpointWithVariants(endpoint: string, collector: Set<string>) {
 
   for (const variant of variants) {
     for (const candidate of wrapIfHttpsPage(variant)) {
-      if (!collector.has(candidate)) {
-        collector.add(candidate);
+      if (!collector.has(candidate.url)) {
+        collector.set(candidate.url, candidate);
       }
     }
   }
 }
 
-function getSubmissionEndpoints(): string[] {
-  const endpoints = new Set<string>();
+function getSubmissionEndpoints(): EndpointVariant[] {
+  const endpoints = new Map<string, EndpointVariant>();
 
   if (SUBMISSION_ENDPOINT) {
     addEndpointWithVariants(SUBMISSION_ENDPOINT, endpoints);
@@ -145,7 +161,7 @@ function getSubmissionEndpoints(): string[] {
     addEndpointWithVariants(DEFAULT_SUBMISSION_ENDPOINT, endpoints);
   }
 
-  return Array.from(endpoints);
+  return Array.from(endpoints.values());
 }
 
 const mockQueueResponse = {
@@ -215,9 +231,9 @@ async function postSubmission(body: Record<string, unknown>) {
 
   for (const endpoint of endpoints) {
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch(endpoint.url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(endpoint.headers || {}) },
         body: JSON.stringify(body),
       });
 
