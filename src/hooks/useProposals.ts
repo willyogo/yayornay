@@ -77,12 +77,9 @@ const buildProposalId = (proposal: SubgraphProposal) => {
 
 const extractCreatorHandle = (proposal: SubgraphProposal) => {
   const title = proposal.title || '';
-  const matchesPurchase = PURCHASE_TITLE_REGEX.test(title);
-  if (!matchesPurchase) return null;
-
   const descriptionHandle = proposal.description?.match(HANDLE_REGEX)?.[1];
   const titleHandle = title.match(TITLE_CREATOR_REGEX)?.[1];
-  const handle = descriptionHandle || titleHandle;
+  const handle = descriptionHandle || (PURCHASE_TITLE_REGEX.test(title) ? titleHandle : null);
 
   if (!handle) return null;
   return handle.startsWith('@') ? handle : `@${handle}`;
