@@ -8,6 +8,7 @@ import { useProposals } from './hooks/useProposals';
 import { useVoting } from './hooks/useVoting';
 import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
+import { DirectProposalPage } from './components/DirectProposalPage';
 import { AppView } from './types/view';
 
 // Get test mode from URL query parameter
@@ -86,6 +87,8 @@ function App() {
           <AuctionPage onSelectView={setView} currentView={view} />
         ) : view === 'submit' ? (
           <SubmitPage onSelectView={setView} currentView={view} />
+        ) : view === 'propose' ? (
+          <DirectProposalPage onSelectView={setView} currentView={view} />
         ) : (
           <LandingPage onBecomeVoter={() => setView('auction')} />
         )}
@@ -120,6 +123,14 @@ function App() {
     return (
       <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
         <SubmitPage onSelectView={setView} currentView={view} />
+      </TestModeContext.Provider>
+    );
+  }
+
+  if (view === 'propose') {
+    return (
+      <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
+        <DirectProposalPage onSelectView={setView} currentView={view} />
       </TestModeContext.Provider>
     );
   }

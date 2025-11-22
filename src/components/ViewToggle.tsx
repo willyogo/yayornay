@@ -1,4 +1,5 @@
 import { AppView } from '../types/view';
+import { useNounBalance } from '../hooks/useNounBalance';
 
 interface ViewToggleProps {
   value: AppView;
@@ -7,7 +8,11 @@ interface ViewToggleProps {
 }
 
 export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
+  const { hasNoun, balance } = useNounBalance();
   const wrapperClass = ['neo-toggle', className].filter(Boolean).join(' ');
+
+  // Check if user can create proposals (has at least 1 token)
+  const canCreateProposal = hasNoun && balance > 0;
 
   return (
     <div className={wrapperClass} role="group" aria-label="Choose app view">
@@ -37,6 +42,19 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
       >
         Submit
       </button>
+      {canCreateProposal && (
+        <>
+          <div className="neo-toggle-divider" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => onChange('propose')}
+            className={`neo-toggle-option ${value === 'propose' ? 'active' : ''}`}
+            aria-pressed={value === 'propose'}
+          >
+            Propose
+          </button>
+        </>
+      )}
     </div>
   );
 }
