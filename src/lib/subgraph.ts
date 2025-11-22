@@ -1,6 +1,8 @@
 // Subgraph utilities for fetching Builder DAO auction data
 // Configure via VITE_BUILDER_DAO_SUBGRAPH_URL environment variable
 
+import { DAO_ADDRESS } from '../config/constants';
+
 // Default to the Goldsky public endpoint for Base Sepolia Builder DAO
 const DEFAULT_SUBGRAPH_URL =
   'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-sepolia/dev/gn';
@@ -117,8 +119,7 @@ export async function fetchAuctionById(
   try {
     // Builder DAO subgraph uses compound IDs: "daoAddress:tokenId"
     const tokenId = typeof nounId === 'string' ? nounId : String(nounId);
-    const daoAddress = '0x626fbb71ca4fe65f94e73ab842148505ae1a0b26'; // YAYNAY DAO
-    const compoundId = `${daoAddress.toLowerCase()}:${tokenId}`;
+    const compoundId = `${DAO_ADDRESS.toLowerCase()}:${tokenId}`;
     
     const data = await gql<{ auctions: SubgraphAuction[] }>(
       `query AuctionById($id: ID!) {
