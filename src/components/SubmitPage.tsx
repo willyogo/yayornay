@@ -81,8 +81,34 @@ const FALLBACK_DISPLAY = {
 };
 
 const DEBOUNCE_MS = 400;
+const DEFAULT_SUBMISSION_ENDPOINT = 'https://164.152.26.43/api/analyze';
 const SUBMISSION_ENDPOINT =
-  import.meta.env?.VITE_SUBMISSION_ENDPOINT || 'https://164.152.26.43/api/analyze';
+  import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_SUBMISSION_ENDPOINT;
+
+function getSubmissionEndpoints(): string[] {
+  if (!SUBMISSION_ENDPOINT) return [];
+
+  const endpoints = [SUBMISSION_ENDPOINT];
+
+  // If we only have an https endpoint, prepare an http fallback to handle TLS blocks or proxies.
+  if (SUBMISSION_ENDPOINT.startsWith('https://')) {
+    const httpFallback = SUBMISSION_ENDPOINT.replace('https://', 'http://');
+    if (httpFallback !== SUBMISSION_ENDPOINT) {
+      endpoints.push(httpFallback);
+    }
+  }
+
+  // Ensure the hardcoded default and its http sibling are always available as last resort.
+  if (!endpoints.includes(DEFAULT_SUBMISSION_ENDPOINT)) {
+    endpoints.push(DEFAULT_SUBMISSION_ENDPOINT);
+  }
+  const defaultHttp = DEFAULT_SUBMISSION_ENDPOINT.replace('https://', 'http://');
+  if (!endpoints.includes(defaultHttp)) {
+    endpoints.push(defaultHttp);
+  }
+
+  return endpoints;
+}
 
 const mockQueueResponse = {
   stats: {
@@ -145,23 +171,35 @@ const mockSubmitCreator = async (creator: string): Promise<AnalysisResponse> => 
   };
 };
 
-async function fetchVotingQueue() {
-  if (!SUBMISSION_ENDPOINT) {
-    return mockQueueResponse;
+async function postSubmission(body: Record<string, unknown>) {
+  const endpoints = getSubmissionEndpoints();
+  let lastError: unknown = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Endpoint returned ${response.status}`);
+      }
+
+      return response.json();
+    } catch (err) {
+      lastError = err;
+      console.warn(`Submission endpoint failed at ${endpoint}`, err);
+    }
   }
 
+  throw lastError || new Error('No submission endpoint configured');
+}
+
+async function fetchVotingQueue() {
   try {
-    const response = await fetch(SUBMISSION_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'queue', confidenceThreshold: 0.3 }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Queue endpoint returned ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await postSubmission({ username: 'queue', confidenceThreshold: 0.3 });
 
     if (!data?.success || !data?.suggestions) {
       throw new Error('Invalid queue response');
@@ -179,28 +217,11 @@ async function fetchVotingQueue() {
 }
 
 async function submitCreatorAnalysis(creator: string): Promise<AnalysisResponse> {
-  // If a real endpoint is configured, try it first, otherwise fall back to mock.
-  if (!SUBMISSION_ENDPOINT) {
-    return mockSubmitCreator(creator);
-  }
-
   try {
-    const response = await fetch(SUBMISSION_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: creator.replace(/^@+/, ''),
-        confidenceThreshold: 0.3,
-      }),
+    const data = await postSubmission({
+      username: creator.replace(/^@+/, ''),
+      confidenceThreshold: 0.3,
     });
-
-    if (!response.ok) {
-      throw new Error(`Endpoint returned ${response.status}`);
-    }
-
-    const data = await response.json();
 
     if (!data?.success || !data?.analysis) {
       throw new Error('Invalid response from submission endpoint');
