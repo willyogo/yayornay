@@ -103,7 +103,10 @@ function wrapIfHttpsPage(endpoint: string): string[] {
   if (!isHttp || !isHttpsPage) return [endpoint];
 
   const proxied = CORS_PROXIES.map((proxyBuilder) => proxyBuilder(endpoint));
-  return [...proxied, endpoint];
+  // On HTTPS pages, avoid mixed-content rejections by only using HTTPS-friendly
+  // proxy URLs. We skip the raw HTTP endpoint so every attempted request remains
+  // HTTPS.
+  return proxied;
 }
 
 function addEndpointWithVariants(endpoint: string, collector: Set<string>) {
