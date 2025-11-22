@@ -16,6 +16,8 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+  const [transitionEnabled, setTransitionEnabled] = useState(true);
+  const [isPromotingNext, setIsPromotingNext] = useState(false);
   const [activeVote, setActiveVote] = useState<VoteType | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const startPos = useRef({ x: 0, y: 0 });
@@ -52,6 +54,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
     activeInputType.current = null;
     setIsDragging(false);
     setIsAnimatingOut(true);
+    setIsPromotingNext(true);
     setActiveVote(voteType);
     setDragOffset(getFlyOutOffset(voteType));
 
@@ -62,16 +65,22 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
         console.error('Vote error:', error);
         animationLock.current = false;
         setIsAnimatingOut(false);
+        setIsPromotingNext(false);
         resetCardPosition();
         return;
       }
     }
 
     setTimeout(() => {
+      setTransitionEnabled(false);
       setCurrentIndex((prev) => prev + 1);
       resetCardPosition();
       setIsAnimatingOut(false);
+      setIsPromotingNext(false);
       animationLock.current = false;
+      requestAnimationFrame(() => {
+        setTransitionEnabled(true);
+      });
     }, 400);
   };
 
@@ -225,7 +234,10 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
           className="relative z-10 w-full h-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing"
           style={{
             transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`,
-            transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(.22,.61,.36,1)',
+            transition:
+              isDragging || !transitionEnabled
+                ? 'none'
+                : 'transform 0.35s cubic-bezier(.22,.61,.36,1)',
             pointerEvents: isAnimatingOut ? 'none' : 'auto',
           }}
           draggable={false}
@@ -279,8 +291,11 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
           <div
             className="absolute inset-0 m-4 z-0"
             style={{
-              transform: 'scale(0.95) translateY(10px)',
-              opacity: 0.5,
+              transform: isPromotingNext
+                ? 'scale(0.985) translateY(-2px)'
+                : 'scale(0.95) translateY(10px)',
+              opacity: isPromotingNext ? 0.85 : 0.5,
+              transition: 'transform 220ms cubic-bezier(.22,.61,.36,1), opacity 220ms ease',
             }}
           >
             <ProposalCard
