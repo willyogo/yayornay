@@ -386,7 +386,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
                   className="absolute top-8 right-8 bg-green-500 text-white px-6 py-3 rounded-full font-bold text-xl rotate-12 shadow-xl"
                   style={{ opacity: activeVote === 'for' ? 1 : supportOpacity }}
                 >
-                  SUPPORT
+                  YAY
                 </div>
               )}
 
@@ -395,7 +395,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
                   className="absolute top-8 left-8 bg-red-500 text-white px-6 py-3 rounded-full font-bold text-xl -rotate-12 shadow-xl"
                   style={{ opacity: activeVote === 'against' ? 1 : supportOpacity }}
                 >
-                  PASS
+                  NAY
                 </div>
               )}
 
