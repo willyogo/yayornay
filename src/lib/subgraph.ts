@@ -4,6 +4,7 @@
 import { DAO_ADDRESS } from '../config/constants';
 
 // Default to the Goldsky public endpoint for Base Mainnet Builder DAO
+// Default to the Goldsky public endpoint for Base  Builder DAO
 const DEFAULT_SUBGRAPH_URL =
   'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
 
