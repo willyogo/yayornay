@@ -8,7 +8,6 @@ import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
-import { useSponsoredTransaction } from '../hooks/useSponsoredTransaction';
 import { AppView } from '../types/view';
 import { CHAIN_CONFIG } from '../config/constants';
 import AuctionHero from './AuctionHero';
@@ -40,7 +39,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     refetch,
   } = useAuction();
 
-  const sponsoredTx = useSponsoredTransaction();
   const [bidModalOpen, setBidModalOpen] = useState(false);
   const [bidSubmitting, setBidSubmitting] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
@@ -230,16 +228,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
           value: valueWei.toString(),
         });
 
-        // Execute sponsored bid transaction
-        const { hash } = await sponsoredTx.execute({
-          address: CONTRACTS.AUCTION_HOUSE,
-          abi: AUCTION_HOUSE_ABI,
-          functionName: 'createBid',
-          args: [auction.nounId],
-          value: valueWei,
-        });
 
-        setTxHash(hash);
         setActionMessage('Bid confirmed!');
         setBidModalOpen(false);
         await refetch();
@@ -253,7 +242,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         setTimeout(() => setActionMessage(null), 6000);
       }
     },
-    [auction, isConnected, sponsoredTx, refetch]
+    [auction, isConnected, refetch]
   );
 
   const attemptSettle = useCallback(
