@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   DollarSign,
   Loader2,
+  Clock3,
   TrendingDown,
   TrendingUp,
   Users,
@@ -25,6 +26,27 @@ interface SubmitPageProps {
 }
 
 type AnalysisStatus = 'idle' | 'analyzing' | 'success' | 'rejected' | 'error';
+
+type QueueStats = {
+  total: number;
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
+};
+
+type QueueSuggestion = {
+  id: string;
+  coinId: string;
+  coinSymbol: string;
+  coinName: string;
+  creatorName: string;
+  pfpUrl: string | null;
+  confidenceScore: number;
+  reason: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  addedAt: string;
+};
 
 type AnalysisResponse = {
   username: string;
@@ -62,6 +84,31 @@ const DEBOUNCE_MS = 400;
 const SUBMISSION_ENDPOINT =
   import.meta.env?.VITE_SUBMISSION_ENDPOINT || 'https://164.152.26.43/api/analyze';
 
+const mockQueueResponse = {
+  stats: {
+    total: 5,
+    pending: 2,
+    processing: 1,
+    completed: 2,
+    failed: 0,
+  } satisfies QueueStats,
+  suggestions: [
+    {
+      id: 'suggestion_123_abc',
+      coinId: '0x...',
+      coinSymbol: 'COIN',
+      coinName: 'Coin Name',
+      creatorName: 'creator',
+      pfpUrl: 'https://imagedelivery.net/12345',
+      confidenceScore: 0.75,
+      reason: '...',
+      status: 'pending' as const,
+      addedAt: '2025-11-22T17:00:00Z',
+    },
+  ],
+  count: 2,
+};
+
 const mockSubmitCreator = async (creator: string): Promise<AnalysisResponse> => {
   // Simulate network latency
   await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -97,6 +144,39 @@ const mockSubmitCreator = async (creator: string): Promise<AnalysisResponse> => 
       : undefined,
   };
 };
+
+async function fetchVotingQueue() {
+  if (!SUBMISSION_ENDPOINT) {
+    return mockQueueResponse;
+  }
+
+  try {
+    const response = await fetch(SUBMISSION_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'queue', confidenceThreshold: 0.3 }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Queue endpoint returned ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data?.success || !data?.suggestions) {
+      throw new Error('Invalid queue response');
+    }
+
+    return {
+      stats: data.stats as QueueStats,
+      suggestions: data.suggestions as QueueSuggestion[],
+      count: data.count as number,
+    };
+  } catch (err) {
+    console.warn('Queue endpoint unavailable, using mock', err);
+    return mockQueueResponse;
+  }
+}
 
 async function submitCreatorAnalysis(creator: string): Promise<AnalysisResponse> {
   // If a real endpoint is configured, try it first, otherwise fall back to mock.
@@ -156,6 +236,11 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle');
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
+  const [queueSuggestions, setQueueSuggestions] = useState<QueueSuggestion[]>([]);
+  const [queueCount, setQueueCount] = useState<number | null>(null);
 
   const creatorIdentifier = debouncedHandle
     ? `@${debouncedHandle.replace(/^@+/, '')}`
@@ -178,6 +263,31 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
 
     return () => clearTimeout(timeout);
   }, [handleInput]);
+
+  useEffect(() => {
+    let isMounted = true;
+    setQueueLoading(true);
+    setQueueError(null);
+
+    fetchVotingQueue()
+      .then((response) => {
+        if (!isMounted) return;
+        setQueueStats(response.stats ?? null);
+        setQueueSuggestions(response.suggestions ?? []);
+        setQueueCount(response.count ?? null);
+      })
+      .catch((err) => {
+        console.error('Failed to load voting queue', err);
+        if (isMounted) setQueueError('Unable to load voting queue');
+      })
+      .finally(() => {
+        if (isMounted) setQueueLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const displayData = useMemo(() => {
     if (coinData) {
@@ -276,6 +386,24 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
   const formatStat = (value?: string | number | null) => {
     if (!value) return '$0';
     return formatCurrency(value);
+  };
+
+  const statusStyles: Record<QueueSuggestion['status'], string> = {
+    pending: 'bg-amber-50 text-amber-700 border-amber-200',
+    processing: 'bg-blue-50 text-blue-700 border-blue-200',
+    completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    failed: 'bg-rose-50 text-rose-700 border-rose-200',
+  };
+
+  const formatAddedAt = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Just now';
+    return date.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   };
 
   return (
@@ -631,6 +759,109 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
               )}
             </div>
           </form>
+
+          <section className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-gray-800 text-xs font-semibold w-fit">
+                  <Clock3 className="w-4 h-4" />
+                  Voting Queue
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Voting Queue</h2>
+                <p className="text-sm text-gray-600">
+                  Every 12 minutes, the top creator is selected and submitted onchain for voting. User submissions approved by
+                  Agent Nay moved immediately to the top of the queue.
+                </p>
+              </div>
+
+              {queueCount !== null && (
+                <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 font-semibold">
+                  {queueCount} upcoming proposal{queueCount === 1 ? '' : 's'}
+                </div>
+              )}
+            </div>
+
+            {queueError && (
+              <div className="inline-flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <AlertCircle className="w-4 h-4" />
+                {queueError}
+              </div>
+            )}
+
+            {queueStats && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {[
+                  { label: 'Total', value: queueStats.total, color: 'bg-gray-50 border-gray-200 text-gray-900' },
+                  { label: 'Pending', value: queueStats.pending, color: 'bg-amber-50 border-amber-200 text-amber-800' },
+                  { label: 'Processing', value: queueStats.processing, color: 'bg-blue-50 border-blue-200 text-blue-800' },
+                  { label: 'Completed', value: queueStats.completed, color: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
+                  { label: 'Failed', value: queueStats.failed, color: 'bg-rose-50 border-rose-200 text-rose-800' },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className={`rounded-xl border px-4 py-3 flex flex-col gap-1 text-sm font-semibold ${stat.color}`}
+                  >
+                    <span className="text-xs uppercase tracking-wide text-gray-500">{stat.label}</span>
+                    <span className="text-lg">{stat.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {queueLoading && (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading queue
+                </div>
+              )}
+
+              {!queueLoading && queueSuggestions.length === 0 && (
+                <p className="text-sm text-gray-500">No proposals are currently queued.</p>
+              )}
+
+              {queueSuggestions.map((suggestion) => (
+                <div
+                  key={suggestion.id}
+                  className="border border-gray-200 rounded-xl p-4 bg-gray-50/70 flex flex-col sm:flex-row sm:items-center gap-4"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border border-white shadow bg-white">
+                      <img
+                        src={suggestion.pfpUrl || getAvatarUrl(suggestion.creatorName)}
+                        alt={suggestion.creatorName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {suggestion.coinName} ({suggestion.coinSymbol})
+                      </p>
+                      <p className="text-xs text-gray-600 truncate">{suggestion.creatorName}</p>
+                      <p className="text-xs text-gray-500 truncate">Added {formatAddedAt(suggestion.addedAt)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 sm:ml-auto">
+                    <div
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${statusStyles[suggestion.status]}`}
+                    >
+                      {suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}
+                    </div>
+                    <div className="inline-flex items-center gap-1 text-xs text-gray-700 bg-white border border-gray-200 rounded-full px-3 py-1.5 font-semibold">
+                      Confidence {Math.round(suggestion.confidenceScore * 100)}%
+                    </div>
+                  </div>
+
+                  {suggestion.reason && (
+                    <p className="text-xs text-gray-600 leading-snug bg-white border border-gray-200 rounded-lg p-3">
+                      {suggestion.reason}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </main>
     </div>
