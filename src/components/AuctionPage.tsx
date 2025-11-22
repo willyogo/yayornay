@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAccount, useWriteContract, useConnect } from 'wagmi';
 import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
 import { config } from '../lib/wagmi';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { parseEther } from 'viem';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
 import { AppView } from '../types/view';
@@ -28,22 +27,15 @@ const publicClient = createPublicClient({
 });
 
 export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
-  const { isConnected, address, chainId } = useAccount();
+  const { isConnected, address } = useAccount();
   const { connect, connectors } = useConnect();
   const {
     auction,
-    currentBid,
-    currentBidRaw,
-    currentBidder,
-    nounId,
-    settled,
-    reservePrice,
-    reservePriceWei,
-    minIncrementPct,
-    duration,
-    minRequiredWei,
+    countdown: _countdown,
+    countdownLabel: _countdownLabel,
     status,
-    isLoading,
+    settled,
+    minRequiredWei,
     refetch,
   } = useAuction();
 
@@ -93,57 +85,43 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       return;
     }
 
-    // Fetch past auction (prefer subgraph, fallback to contract settlements)
+    // Fetch past auction from subgraph
     (async () => {
       try {
         // Try subgraph first (matching original component approach)
         if (isSubgraphConfigured()) {
           const sg = await fetchAuctionById(viewNounId);
           if (sg) {
+            // Use winningBid for settled auctions, highestBid for active auctions
+            const bidAmount = sg.winningBid?.amount ?? sg.highestBid?.amount ?? '0';
+            const bidderAddress = sg.winningBid?.bidder ?? sg.highestBid?.bidder ?? '0x0000000000000000000000000000000000000000';
+            
+            // Parse the subgraph ID format: "daoAddress:tokenId"
+            const tokenId = sg.id.includes(':') ? sg.id.split(':')[1] : sg.id;
+            
             setDisplayAuction({
-              nounId: BigInt(sg.id),
-              amount: BigInt(sg.amount),
+              nounId: BigInt(tokenId),
+              amount: BigInt(bidAmount),
               startTime: BigInt(sg.startTime),
               endTime: BigInt(sg.endTime),
-              bidder: (sg.bidder?.id ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
+              bidder: bidderAddress as `0x${string}`,
               settled: Boolean(sg.settled),
             });
             return;
           }
         }
 
-        // Fallback to contract settlements if subgraph unavailable or no data
-        const settlementData = await publicClient.readContract({
-          address: CONTRACTS.AUCTION_HOUSE,
-          abi: AUCTION_HOUSE_ABI,
-          functionName: 'getSettlements',
-          args: [BigInt(viewNounId), BigInt(viewNounId), true],
+        // No data found from subgraph - show placeholder
+        setDisplayAuction({
+          nounId: BigInt(viewNounId),
+          amount: 0n,
+          startTime: 0n,
+          endTime: 0n,
+          bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          settled: false,
         });
-
-        if (settlementData && Array.isArray(settlementData) && settlementData.length > 0) {
-          const settlement = settlementData[0] as any;
-          const settlementTime = BigInt(settlement.blockTimestamp);
-          
-          setDisplayAuction({
-            nounId: BigInt(viewNounId),
-            amount: BigInt(settlement.amount),
-            startTime: settlementTime,
-            endTime: settlementTime,
-            bidder: settlement.winner as `0x${string}`,
-            settled: true,
-          });
-        } else {
-          // No data found
-          setDisplayAuction({
-            nounId: BigInt(viewNounId),
-            amount: 0n,
-            startTime: 0n,
-            endTime: 0n,
-            bidder: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-            settled: false,
-          });
-        }
-      } catch {
+      } catch (error) {
+        console.error('Error fetching past auction:', error);
         // Fallback: create a placeholder auction
         setDisplayAuction({
           nounId: BigInt(viewNounId),
@@ -155,7 +133,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         });
       }
     })();
-  }, [viewNounId, auction, publicClient]);
+  }, [viewNounId, publicClient]);
 
   // Update countdown for display auction
   useEffect(() => {
@@ -195,7 +173,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   }, [viewNounId, auction]);
 
   const canGoNext = auction ? (viewNounId ?? 0) < Number(auction.nounId) : false;
-  const canGoPrev = viewNounId != null && viewNounId > 0;
   const isCurrentView = viewNounId === (auction ? Number(auction.nounId) : null);
 
   const dateLabel = useMemo(() => {
