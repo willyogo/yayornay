@@ -247,7 +247,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
           const transform = isTopCard
             ? `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`
             : isPromotingNext
-              ? 'scale(0.985) translateY(-2px)'
+              ? 'scale(1) translateY(0)'
               : 'scale(0.95) translateY(10px)';
           const transition = isTopCard
             ? isDragging || !transitionEnabled
@@ -259,11 +259,11 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
             <div
               key={proposal.id}
               ref={isTopCard ? cardRef : undefined}
-              className={`absolute inset-0 ${isTopCard ? 'z-10 w-full h-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing' : 'z-0 m-4 pointer-events-none'}`}
+              className={`absolute inset-0 ${isTopCard ? 'z-10 w-full h-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing' : 'z-0 w-full h-full pointer-events-none'}`}
               style={{
                 transform,
                 transition,
-                opacity: isTopCard ? 1 : isPromotingNext ? 0.85 : 0.5,
+                opacity: isTopCard ? 1 : isPromotingNext ? 0.95 : 0.5,
                 pointerEvents: isTopCard && !isAnimatingOut ? 'auto' : 'none',
               }}
               draggable={false}
