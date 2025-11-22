@@ -247,3 +247,4 @@ The `useAuction` hook sets up automatic polling every 15 seconds to refresh auct
 - [Architecture Overview](../architecture/overview.md) - System architecture
 
 
+

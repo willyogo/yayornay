@@ -2,11 +2,17 @@
 -- This migration ensures policies exist (idempotent)
 -- Note: If policies already exist from the first migration, this will be a no-op
 
+-- Suppress NOTICE messages for DROP POLICY IF EXISTS
+SET client_min_messages TO WARNING;
+
 -- Drop existing policies if they exist (to allow recreation)
 DROP POLICY IF EXISTS "Users can read their own server wallet address" ON server_wallets;
 DROP POLICY IF EXISTS "Users can read server wallet addresses" ON server_wallets;
 DROP POLICY IF EXISTS "Allow wallet creation" ON server_wallets;
 DROP POLICY IF EXISTS "Allow wallet updates" ON server_wallets;
+
+-- Restore default message level
+SET client_min_messages TO NOTICE;
 
 -- Allow read access to wallet addresses (public info)
 CREATE POLICY "Users can read server wallet addresses"
