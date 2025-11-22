@@ -33,6 +33,75 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   const animationLock = useRef(false);
   const [timeUntilNext, setTimeUntilNext] = useState(NEXT_PROPOSAL_DELAY_MS);
   const { address } = useAccount();
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Initialize audio context on first user interaction
+  useEffect(() => {
+    const initAudio = () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+    };
+    
+    // Initialize on any user interaction
+    window.addEventListener('click', initAudio, { once: true });
+    window.addEventListener('touchstart', initAudio, { once: true });
+    
+    return () => {
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('touchstart', initAudio);
+    };
+  }, []);
+
+  // Play sound effect for vote type
+  const playVoteSound = (voteType: VoteType) => {
+    if (!audioContextRef.current) return;
+    
+    const ctx = audioContextRef.current;
+    const now = ctx.currentTime;
+    
+    if (voteType === 'for') {
+      // Pleasant ascending tone for "YAY"
+      [523.25, 659.25, 783.99].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        
+        gain.gain.value = 0;
+        gain.gain.setValueAtTime(0, now + i * 0.08);
+        gain.gain.linearRampToValueAtTime(0.15, now + i * 0.08 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.25);
+        
+        osc.start(now + i * 0.08);
+        osc.stop(now + i * 0.08 + 0.25);
+      });
+    } else if (voteType === 'against') {
+      // Descending tone for "NAY"
+      [392.00, 329.63].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        
+        gain.gain.value = 0;
+        gain.gain.setValueAtTime(0, now + i * 0.1);
+        gain.gain.linearRampToValueAtTime(0.12, now + i * 0.1 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+        
+        osc.start(now + i * 0.1);
+        osc.stop(now + i * 0.1 + 0.3);
+      });
+    }
+  };
 
   const votedProposalIds = useMemo(() => {
     if (!address) return new Set<string>();
@@ -71,6 +140,9 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
     // Don't allow voting on pending proposals
     if (currentProposal.status === 'pending') return;
+
+    // Play sound effect
+    playVoteSound(voteType);
 
     animationLock.current = true;
     activePointerId.current = null;
@@ -166,7 +238,6 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
     setIsDragging(false);
 
     const horizontalThreshold = 110;
-    const absX = Math.abs(dragOffset.x);
 
     if (dragOffset.x > horizontalThreshold) {
       handleVote('for');
