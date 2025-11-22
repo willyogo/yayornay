@@ -1,6 +1,65 @@
 import { useState, useEffect } from 'react';
 import { fetchCoinData, fetchProfileCoins, getCreatorCoinAddress, ZoraCoinData, ContentCoin } from '../lib/zora';
 
+type CacheEntry = {
+  coinData: ZoraCoinData | null;
+  contentCoins: ContentCoin[];
+};
+
+// Simple in-memory cache to avoid refetching creators we've already loaded
+const coinCache = new Map<string, CacheEntry>();
+const pendingFetches = new Map<string, Promise<CacheEntry>>();
+
+async function loadCreatorData(creatorIdentifier: string): Promise<CacheEntry> {
+  const cached = coinCache.get(creatorIdentifier);
+  if (cached) return cached;
+
+  const existing = pendingFetches.get(creatorIdentifier);
+  if (existing) return existing;
+
+  const fetchPromise = (async () => {
+    const profileCoinsPromise = fetchProfileCoins(creatorIdentifier, 4);
+    const coinAddress = await getCreatorCoinAddress(creatorIdentifier);
+
+    if (!coinAddress) {
+      const entry: CacheEntry = { coinData: null, contentCoins: [] };
+      coinCache.set(creatorIdentifier, entry);
+      return entry;
+    }
+
+    const [data, profileCoins] = await Promise.all([
+      fetchCoinData(coinAddress),
+      profileCoinsPromise,
+    ]);
+
+    const entry: CacheEntry = {
+      coinData: data ?? null,
+      contentCoins: profileCoins || [],
+    };
+
+    coinCache.set(creatorIdentifier, entry);
+    return entry;
+  })();
+
+  pendingFetches.set(creatorIdentifier, fetchPromise);
+  try {
+    const entry = await fetchPromise;
+    return entry;
+  } finally {
+    pendingFetches.delete(creatorIdentifier);
+  }
+}
+
+export async function prefetchZoraCoinData(creatorIdentifier: string | null) {
+  if (!creatorIdentifier) return;
+  if (coinCache.has(creatorIdentifier) || pendingFetches.has(creatorIdentifier)) return;
+  try {
+    await loadCreatorData(creatorIdentifier);
+  } catch (err) {
+    console.error('❌ [useZoraCoin] Prefetch error:', err);
+  }
+}
+
 export function useZoraCoin(creatorIdentifier: string | null) {
   const [coinData, setCoinData] = useState<ZoraCoinData | null>(null);
   const [contentCoins, setContentCoins] = useState<ContentCoin[]>([]);
@@ -17,57 +76,25 @@ export function useZoraCoin(creatorIdentifier: string | null) {
 
     let mounted = true;
 
+    // Clear any previous creator's data so stale details don't flash while the new fetch runs
+    setCoinData(null);
+    setContentCoins([]);
+    setError(null);
+
     async function loadCoinData() {
       if (!creatorIdentifier) return;
-      
-      console.log('🔍 [useZoraCoin] Starting fetch for:', creatorIdentifier);
-      
       setLoading(true);
       setError(null);
 
       try {
-        const profileCoinsPromise = fetchProfileCoins(creatorIdentifier, 4);
+        const entry = await loadCreatorData(creatorIdentifier);
+        if (!mounted) return;
 
-        // First, try to get the creator's coin address
-        console.log('📍 [useZoraCoin] Fetching creator coin address...');
-        const coinAddress = await getCreatorCoinAddress(creatorIdentifier);
-        
-        console.log('📍 [useZoraCoin] Coin address result:', coinAddress);
-        
-        if (!coinAddress) {
-          if (mounted) {
-            console.warn('⚠️ [useZoraCoin] No creator coin found for:', creatorIdentifier);
-            setError('No creator coin found');
-            setCoinData(null);
-          }
-          return;
-        }
+        setCoinData(entry.coinData);
+        setContentCoins(entry.contentCoins);
 
-        // Fetch the coin data and content coins in parallel
-        console.log('💰 [useZoraCoin] Fetching coin data for address:', coinAddress);
-        const [data, profileCoins] = await Promise.all([
-          fetchCoinData(coinAddress),
-          profileCoinsPromise,
-        ]);
-        
-        console.log('💰 [useZoraCoin] Coin data result:', data);
-        
-        if (mounted) {
-          setContentCoins(profileCoins || []);
-          if (data) {
-            console.log('✅ [useZoraCoin] Successfully loaded coin data:', {
-              name: data.name,
-              symbol: data.symbol,
-              hasProfile: !!data.creatorProfile,
-              hasAvatar: !!data.creatorProfile?.avatar?.previewImage?.medium,
-              hasCoverImage: !!data.mediaContent?.previewImage?.medium
-            });
-            setCoinData(data);
-          } else {
-            console.error('❌ [useZoraCoin] Failed to load coin data');
-            setError('Failed to load coin data');
-            setCoinData(null);
-          }
+        if (!entry.coinData) {
+          setError('No creator coin found');
         }
       } catch (err) {
         console.error('❌ [useZoraCoin] Error:', err);
@@ -81,6 +108,14 @@ export function useZoraCoin(creatorIdentifier: string | null) {
           setLoading(false);
         }
       }
+    }
+
+    // Serve cached data immediately if we have it, then ensure fresh data is loaded in background
+    const cached = coinCache.get(creatorIdentifier);
+    if (cached) {
+      setCoinData(cached.coinData);
+      setContentCoins(cached.contentCoins);
+      setLoading(false);
     }
 
     loadCoinData();

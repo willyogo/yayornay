@@ -3,6 +3,7 @@ import { X, Heart, MoveUp } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { ProposalCard } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
+import { prefetchZoraCoinData } from '../hooks/useZoraCoin';
 
 interface SwipeStackProps {
   proposals: Proposal[];
@@ -206,6 +207,17 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
     };
   }, [isDragging]);
 
+  // Prefetch the next few proposals' coin data so the cards can render instantly when promoted
+  useEffect(() => {
+    const idsToPrefetch = [currentIndex + 1, currentIndex + 2, currentIndex + 3]
+      .map((i) => proposals[i]?.creator_username || proposals[i]?.creator_address)
+      .filter(Boolean) as string[];
+
+    idsToPrefetch.forEach((id) => {
+      prefetchZoraCoinData(id);
+    });
+  }, [currentIndex, proposals]);
+
   if (currentIndex >= proposals.length) {
     return (
       <div className="flex-1 flex items-center justify-center text-center p-8">
@@ -254,6 +266,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
         >
           <div className="card-content relative w-full h-full cursor-grab active:cursor-grabbing">
             <ProposalCard
+              key={currentProposal.id}
               proposal={currentProposal}
               onDetailClick={() => onDetailClick(currentProposal)}
             />
@@ -299,6 +312,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
             }}
           >
             <ProposalCard
+              key={proposals[currentIndex + 1].id}
               proposal={proposals[currentIndex + 1]}
               onDetailClick={() => {}}
             />
