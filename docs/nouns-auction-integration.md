@@ -69,46 +69,108 @@ Nouns NFTs are generated on-chain. Options for displaying:
 - **IPFS/Arweave** - If metadata is stored off-chain
 - **Nouns API** - Use Nouns Builder API if available for Base
 
-## Gnars DAO Specifics
+## Contract Configuration
 
-For Gnars DAO on Base (0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17):
+All contract addresses and chain configuration are centralized in `src/config/constants.ts`:
 
-- Need to find the auction contract address (separate from governance)
-- Check if Gnars uses standard Nouns Builder auction contract
-- Verify auction interval (may not be exactly 24 hours)
+```typescript
+export const CONTRACTS = {
+  NFT: '0x626FbB71Ca4FE65F94e73AB842148505ae1a0B26',
+  AUCTION_HOUSE: '0xe9609Fb710bDC6f88Aa5992014a156aeb31A6896',
+  GOVERNOR: '0x9F530c7bCdb859bB1DcA3cD4EAE644f973A5f505',
+  TREASURY: '0x3ed26c1d23Fd4Ea3B5e2077B60B4F1EC80Aba94f',
+  METADATA: '0x82ACd8e6ea567d99B63fcFc21ec824b5D05C9744',
+} as const;
+```
 
-## Implementation Steps
+The application is configured for **Base Sepolia testnet** (Chain ID 84532).
 
-1. **Find Auction Contract Address**
-   - Check Gnars DAO on nouns.build
-   - Look for auction contract in DAO deployment
-   - May need to query governance contract for auction address
+## Implementation Details
 
-2. **Create Auction Hook**
-   - `useAuction()` hook using `useReadContract`
-   - Poll for updates every few seconds
-   - Calculate time remaining
+### Contract Data Interpretation
 
-3. **Create Auction Component**
-   - Display auction card on landing page
-   - Show NFT preview, bid amount, countdown
-   - Place bid functionality (future)
+**Important:** The contract's `endTime` field actually contains the `startTime`. The actual `endTime` is calculated as `startTime + duration`.
 
-4. **Handle Bidding** (Future)
-   - Use `useWriteContract` to place bids
-   - Handle bid validation (minimum increment)
-   - Show transaction status
+```typescript
+// Contract returns: { endTime: actualStartTime, ... }
+const actualStartTime = contractEndTime;
+const actualEndTime = actualStartTime + duration;
+```
 
-## Current State
+### Subgraph Integration
 
-- No auction integration exists yet
-- Wagmi is configured and ready for contract reads
-- Landing page is a good place to add auction display
-- Need to identify auction contract address for Gnars DAO
+The application uses a **subgraph-first approach** for fetching auction data:
+
+1. **Primary:** Query Builder DAO subgraph (configured via `VITE_BUILDER_DAO_SUBGRAPH_URL`)
+2. **Fallback:** Read directly from contract if subgraph unavailable
+
+The subgraph provides faster reads and includes historical auction data. See `src/lib/subgraph.ts` for implementation.
+
+### NFT Image Rendering
+
+The `NounImage` component (`src/components/NounImage.tsx`) fetches images by:
+1. Reading `tokenURI` from the NFT contract
+2. Parsing the metadata to extract image URL
+3. Falling back to `noun.pics` if contract read fails
+
+## Current Implementation
+
+### ✅ Completed Features
+
+1. **Auction Data Fetching**
+   - `useAuction()` hook (`src/hooks/useAuction.ts`)
+   - Subgraph integration with contract fallback
+   - Automatic polling every 15 seconds
+   - Time remaining calculation
+
+2. **Auction Display**
+   - `AuctionPage` component (`src/components/AuctionPage.tsx`)
+   - `AuctionHero` component (`src/components/AuctionHero.tsx`)
+   - Displays current bid, highest bidder, time remaining
+   - NFT image rendering via `NounImage` component
+
+3. **Bidding Functionality**
+   - `BidModal` component for bid input
+   - Transaction simulation before submission
+   - Bid validation (minimum increment check)
+   - Transaction status tracking
+
+4. **Past Auction Navigation**
+   - Navigate between current and past auctions
+   - Previous/Next buttons
+   - Fetches historical data from subgraph or contract settlements
+
+5. **Auction Settlement**
+   - Settle ended auctions
+   - "Claim NFT" button for winners
+   - "Start Next Auction" button for others
+   - Automatic navigation to next auction after settlement
+
+### Component Structure
+
+- **AuctionPage**: Main page component managing auction state, navigation, bidding, and settlement
+- **AuctionHero**: Visual auction card displaying NFT, bid info, countdown, and action buttons
+- **NounImage**: Fetches and displays Noun NFT images
+- **BidModal**: Modal for entering bid amounts
+
+### Data Flow
+
+1. `useAuction` hook fetches from subgraph (preferred) or contract
+2. `AuctionPage` manages `viewNounId` for navigation
+3. For past auctions, fetches from subgraph or `getSettlements` contract call
+4. Bid submission uses `useWriteContract` with transaction simulation
+5. Settlement uses `settleAuction` or `settleCurrentAndCreateNewAuction` functions
+
+## Related Documentation
+
+- [Subgraph API Reference](./api/subgraph.md) - Subgraph integration details
+- [Wagmi API Reference](./api/wagmi.md) - Contract interaction hooks
+- [Component Architecture](./architecture/components.md#auctionpage) - Component details
+- [Data Flow](./architecture/data-flow.md#auction-data-flow) - Auction data flow
 
 ## Resources
 
 - Nouns Builder Docs: https://docs.nouns.build/
-- Gnars DAO: https://nouns.build/dao/base/0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17/
 - Wagmi useReadContract: https://wagmi.sh/react/hooks/useReadContract
+- Wagmi useWriteContract: https://wagmi.sh/react/hooks/useWriteContract
 

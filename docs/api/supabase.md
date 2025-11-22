@@ -22,7 +22,24 @@ TypeScript types are exported from `src/lib/supabase.ts`. The Proposal type incl
 
 ### Fetching Active Proposals
 
-The useProposals hook queries Supabase for proposals matching the configured DAO address with active status, ordered by creation date descending. It filters by dao_address (lowercased) and status equals 'active', then orders results by created_at descending.
+The `useProposals` hook uses a **subgraph-first approach**:
+
+1. **Subgraph Query (Preferred)**:
+   - First attempts to fetch proposals from Builder DAO subgraph via `fetchActiveProposalsFromSubgraph()`
+   - Queries GraphQL for active proposals matching the DAO address
+   - Transforms subgraph proposals to `Proposal` type
+   - Uses subgraph data if available
+
+2. **Supabase Fallback**:
+   - If subgraph is unavailable or returns no proposals, falls back to Supabase
+   - Queries Supabase for proposals matching the configured DAO address with active status
+   - Filters by `dao_address` (lowercased) and `status` equals 'active'
+   - Orders results by `created_at` descending
+
+3. **Test Mode Fallback**:
+   - If test mode is enabled and no subgraph/Supabase data is available, returns mock proposals
+
+**Note:** Supabase now serves as a fallback data source rather than the primary source for proposals. See [Subgraph API Reference](./subgraph.md) for subgraph integration details.
 
 ### Inserting Votes
 
