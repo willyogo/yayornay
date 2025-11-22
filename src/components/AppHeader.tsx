@@ -1,10 +1,9 @@
 import { ViewToggle } from './ViewToggle';
-
-type ViewOption = 'landing' | 'auction';
+import { AppView } from '../types/view';
 
 interface AppHeaderProps {
-  view: ViewOption;
-  onChange: (view: ViewOption) => void;
+  view: AppView;
+  onChange: (view: AppView) => void;
 }
 
 export function AppHeader({ view, onChange }: AppHeaderProps) {

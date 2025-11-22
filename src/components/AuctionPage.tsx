@@ -9,6 +9,7 @@ import { baseSepolia } from 'viem/chains';
 import { parseEther } from 'viem';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
+import { AppView } from '../types/view';
 import AuctionHero from './AuctionHero';
 import BidModal from './BidModal';
 import { getAuctionStatus } from '../utils/auction';
@@ -16,8 +17,8 @@ import { fetchAuctionById, isSubgraphConfigured } from '../lib/subgraph';
 import { AppHeader } from './AppHeader';
 
 interface AuctionPageProps {
-  onSelectView: (view: 'landing' | 'auction') => void;
-  currentView: 'landing' | 'auction';
+  onSelectView: (view: AppView) => void;
+  currentView: AppView;
 }
 
 const publicClient = createPublicClient({

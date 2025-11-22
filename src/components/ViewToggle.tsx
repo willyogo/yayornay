@@ -1,8 +1,8 @@
-type ViewOption = 'landing' | 'auction';
+import { AppView } from '../types/view';
 
 interface ViewToggleProps {
-  value: ViewOption;
-  onChange: (value: ViewOption) => void;
+  value: AppView;
+  onChange: (value: AppView) => void;
   className?: string;
 }
 
@@ -27,6 +27,15 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
         aria-pressed={value === 'auction'}
       >
         Get votes
+      </button>
+      <div className="neo-toggle-divider" aria-hidden="true" />
+      <button
+        type="button"
+        onClick={() => onChange('submit')}
+        className={`neo-toggle-option ${value === 'submit' ? 'active' : ''}`}
+        aria-pressed={value === 'submit'}
+      >
+        Submit
       </button>
     </div>
   );

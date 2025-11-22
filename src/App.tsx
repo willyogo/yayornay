@@ -7,8 +7,8 @@ import { SwipeStack } from './components/SwipeStack';
 import { useProposals } from './hooks/useProposals';
 import { useVoting } from './hooks/useVoting';
 import { AppHeader } from './components/AppHeader';
-
-type View = 'landing' | 'auction';
+import { SubmitPage } from './components/SubmitPage';
+import { AppView } from './types/view';
 
 // Get test mode from URL query parameter
 const getTestModeFromURL = (): boolean => {
@@ -29,12 +29,12 @@ export const useTestMode = () => useContext(TestModeContext);
 function App() {
   const { isConnected, address } = useAccount();
   const [testMode] = useState(() => getTestModeFromURL());
-  const [view, setView] = useState<View>('landing');
+  const [view, setView] = useState<AppView>('landing');
   const { proposals, loading } = useProposals(testMode);
   const { submitVote } = useVoting();
   
   // Track the view before connecting to return to it after login
-  const previousViewRef = useRef<View | null>(null);
+  const previousViewRef = useRef<AppView | null>(null);
   const wasConnectedRef = useRef(false);
 
   // Signal to mini app that the app is ready to display
@@ -71,13 +71,12 @@ function App() {
   if (!isConnected) {
     return (
       <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
-        {view === 'landing' ? (
-          <LandingPage onBecomeVoter={() => setView('auction')} />
+        {view === 'auction' ? (
+          <AuctionPage onSelectView={setView} currentView={view} />
+        ) : view === 'submit' ? (
+          <SubmitPage onSelectView={setView} currentView={view} />
         ) : (
-          <AuctionPage
-            onSelectView={setView}
-            currentView={view}
-          />
+          <LandingPage onBecomeVoter={() => setView('auction')} />
         )}
       </TestModeContext.Provider>
     );
@@ -102,6 +101,14 @@ function App() {
           onSelectView={setView}
           currentView={view}
         />
+      </TestModeContext.Provider>
+    );
+  }
+
+  if (view === 'submit') {
+    return (
+      <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
+        <SubmitPage onSelectView={setView} currentView={view} />
       </TestModeContext.Provider>
     );
   }
