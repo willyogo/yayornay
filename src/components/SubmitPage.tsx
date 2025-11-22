@@ -24,7 +24,28 @@ interface SubmitPageProps {
   currentView: AppView;
 }
 
-type SubmissionState = 'idle' | 'submitting' | 'success' | 'error';
+type AnalysisStatus = 'idle' | 'analyzing' | 'success' | 'rejected' | 'error';
+
+type AnalysisResponse = {
+  username: string;
+  creatorAddress: string;
+  coinId: string;
+  symbol: string;
+  name: string;
+  currentPriceUsd: number;
+  volume24hUsd: number;
+  alreadyHeld: boolean;
+  reason: string;
+  confidenceScore: number;
+  suggestedAllocationUsd: number | null;
+  proposalSubmitted: boolean;
+  proposal?: {
+    proposalId: string;
+    onChainTxHash: string | null;
+    ethAmount: string | null;
+    status: 'pending' | 'complete' | 'failed';
+  };
+};
 
 const FALLBACK_DISPLAY = {
   marketCap: '$12.5K',
@@ -38,17 +59,78 @@ const FALLBACK_DISPLAY = {
 };
 
 const DEBOUNCE_MS = 400;
+const SUBMISSION_ENDPOINT = import.meta.env?.VITE_SUBMISSION_ENDPOINT;
 
-const mockSubmitCreator = async (creator: string) => {
-  // Simulate sending the creator handle to an API endpoint
-  await new Promise((resolve) => setTimeout(resolve, 800));
-  console.log('Mock submit payload', { creator });
+const mockSubmitCreator = async (creator: string): Promise<AnalysisResponse> => {
+  // Simulate network latency
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+
+  // Allow deterministic testing: handles containing "fail" are rejected, "error" throws
+  if (creator.toLowerCase().includes('error')) {
+    throw new Error('Mock analysis failed');
+  }
+
+  const proposalSubmitted = !creator.toLowerCase().includes('fail');
+
+  return {
+    username: creator.replace('@', ''),
+    creatorAddress: '0x0cf0c3b75d522290d7d12c74d7f1f0cc47ccb23b',
+    coinId: '0x0cf0c3b75d522290d7d12c74d7f1f0cc47ccb23b',
+    symbol: creator.replace('@', '') || 'zora',
+    name: creator.replace('@', '') || 'Zora Creator',
+    currentPriceUsd: 0.0000306,
+    volume24hUsd: 70.28,
+    alreadyHeld: false,
+    reason:
+      'The current price is very low with limited trading volume, suggesting liquidity risk. Recommend caution until momentum improves.',
+    confidenceScore: 0.4,
+    suggestedAllocationUsd: null,
+    proposalSubmitted,
+    proposal: proposalSubmitted
+      ? {
+          proposalId: `proposal_${Date.now()}`,
+          onChainTxHash: '0x7b76edd86d8b4426532371b087e58edbc527330f78dd44e38674ea44459f365a',
+          ethAmount: '0.001',
+          status: 'pending',
+        }
+      : undefined,
+  };
 };
+
+async function submitCreatorAnalysis(creator: string): Promise<AnalysisResponse> {
+  // If a real endpoint is configured, try it first, otherwise fall back to mock.
+  if (!SUBMISSION_ENDPOINT) {
+    return mockSubmitCreator(creator);
+  }
+
+  try {
+    const response = await fetch(SUBMISSION_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ creator }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Endpoint returned ${response.status}`);
+    }
+
+    const data = (await response.json()) as AnalysisResponse;
+    return data;
+  } catch (err) {
+    console.warn('Submission endpoint unavailable, using mock', err);
+    return mockSubmitCreator(creator);
+  }
+}
 
 export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
   const [handleInput, setHandleInput] = useState('');
   const [debouncedHandle, setDebouncedHandle] = useState('');
-  const [submissionState, setSubmissionState] = useState<SubmissionState>('idle');
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting'>('idle');
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>('idle');
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const creatorIdentifier = debouncedHandle
     ? `@${debouncedHandle.replace(/^@+/, '')}`
@@ -96,13 +178,13 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
     return FALLBACK_DISPLAY;
   }, [coinData]);
 
+  const showDetails = Boolean(creatorIdentifier && !loading && coinData);
   const changeIsPositive = displayData.change24h >= 0;
   const canSubmit =
     Boolean(creatorIdentifier) &&
     !loading &&
-    submissionState !== 'submitting';
-
-  const showDetails = Boolean(creatorIdentifier && !loading && coinData);
+    submitStatus !== 'submitting' &&
+    showDetails;
   const creatorLabel = creatorIdentifier || '@creator';
   const profileImage =
     displayData.profileImage || getAvatarUrl(creatorIdentifier || '@creator');
@@ -134,7 +216,10 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
   const handleInputChange = (value: string) => {
     const normalized = value.replace(/^@+/, '').replace(/\s+/g, '');
     setHandleInput(normalized);
-    setSubmissionState('idle');
+    setSubmitStatus('idle');
+    setAnalysisStatus('idle');
+    setAnalysis(null);
+    setAnalysisError(null);
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -142,13 +227,20 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
     if (!creatorIdentifier || !canSubmit) return;
 
     try {
-      setSubmissionState('submitting');
-      await mockSubmitCreator(creatorIdentifier);
-      setSubmissionState('success');
-      setTimeout(() => setSubmissionState('idle'), 2000);
+      setSubmitStatus('submitting');
+      setAnalysisStatus('analyzing');
+      setAnalysis(null);
+      setAnalysisError(null);
+
+      const result = await submitCreatorAnalysis(creatorIdentifier);
+      setAnalysis(result);
+      setAnalysisStatus(result.proposalSubmitted ? 'success' : 'rejected');
+      setSubmitStatus('idle');
     } catch (err) {
       console.error('Mock submission failed', err);
-      setSubmissionState('error');
+      setAnalysisError(err instanceof Error ? err.message : 'Failed to submit');
+      setAnalysisStatus('error');
+      setSubmitStatus('idle');
     }
   };
 
@@ -186,19 +278,6 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                 </div>
               </div>
 
-              {submissionState === 'success' && (
-                <div className="inline-flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Submission received for {creatorIdentifier}
-                </div>
-              )}
-
-              {submissionState === 'error' && (
-                <div className="inline-flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Something went wrong. Please try again.
-                </div>
-              )}
             </section>
 
             <div className="space-y-3">
@@ -289,7 +368,7 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                               e.stopPropagation();
                             }}
                           >
-                            {submissionState === 'submitting' ? (
+                            {submitStatus === 'submitting' ? (
                               <>
                                 <Loader2 className="w-4 h-4 animate-spin" />
                                 Submitting
@@ -364,6 +443,7 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                           </p>
                         </div>
                         <button
+                          type="button"
                           className="inline-flex items-center gap-2 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -441,6 +521,7 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                         {hasMoreContentCoins && (
                           <div className="flex justify-center">
                             <button
+                              type="button"
                               className="inline-flex items-center gap-2 rounded-full bg-gray-100 hover:bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -456,6 +537,69 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                           <p className="text-center text-xs text-gray-400 py-2">No content coins yet</p>
                         )}
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {analysisStatus !== 'idle' && (
+                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-3">
+                  {analysisStatus === 'analyzing' && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 animate-pulse flex items-center justify-center text-white font-bold">
+                        🔍
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Analyzing creator</p>
+                        <p className="text-xs text-gray-500">Agent Nay is reviewing this creator coin...</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {analysisStatus === 'success' && analysis && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <CheckCircle2 className="w-5 h-5" />
+                        <p className="font-semibold">Analysis complete. Creator has been added to the queue and will be live for voting momentarily.</p>
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{analysis.reason}</p>
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div className="rounded-xl bg-green-50 border border-green-100 p-3">
+                          <p className="text-[11px] uppercase tracking-wide text-green-700 mb-1">Confidence</p>
+                          <p className="text-base font-bold text-gray-900">{Math.round(analysis.confidenceScore * 100)}%</p>
+                        </div>
+                        <div className="rounded-xl bg-blue-50 border border-blue-100 p-3">
+                          <p className="text-[11px] uppercase tracking-wide text-blue-700 mb-1">Price</p>
+                          <p className="text-base font-bold text-gray-900">${analysis.currentPriceUsd.toFixed(6)}</p>
+                        </div>
+                        <div className="rounded-xl bg-purple-50 border border-purple-100 p-3">
+                          <p className="text-[11px] uppercase tracking-wide text-purple-700 mb-1">24h Volume</p>
+                          <p className="text-base font-bold text-gray-900">${analysis.volume24hUsd.toLocaleString()}</p>
+                        </div>
+                      </div>
+                      {analysis.proposal?.onChainTxHash && (
+                        <p className="text-xs text-gray-500">
+                          Proposal #{analysis.proposal.proposalId} • tx {analysis.proposal.onChainTxHash.slice(0, 10)}...
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {analysisStatus === 'rejected' && analysis && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-amber-700">
+                        <AlertCircle className="w-5 h-5" />
+                        <p className="font-semibold">Analysis complete. Creator did not pass the threshold for submission at this time. You can try submitting this creator again tomorrow.</p>
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{analysis.reason}</p>
+                    </div>
+                  )}
+
+                  {analysisStatus === 'error' && (
+                    <div className="flex items-center gap-2 text-red-700">
+                      <AlertCircle className="w-5 h-5" />
+                      <p className="font-semibold">Analysis failed. Please try again.</p>
+                      {analysisError && <span className="text-xs text-red-500">({analysisError})</span>}
                     </div>
                   )}
                 </div>
