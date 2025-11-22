@@ -1,5 +1,6 @@
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { Wallet, LogOut } from 'lucide-react';
+import { EnsName } from './EnsName';
 
 export function WalletConnect() {
   const { address, isConnected } = useAccount();
@@ -14,7 +15,7 @@ export function WalletConnect() {
       >
         <div className="w-2 h-2 bg-green-400 rounded-full" />
         <span className="font-medium">
-          {address.slice(0, 6)}...{address.slice(-4)}
+          <EnsName address={address} className="font-medium" />
         </span>
         <LogOut className="w-4 h-4" />
       </button>

@@ -28,7 +28,7 @@ VITE_CDP_API_KEY=a142a893-a9b1-4b3c-bbbd-b609c06dd145
 # VITE_BASE_SEPOLIA_RPC_URL=https://your-custom-rpc-url.com
 
 # Optional: Builder DAO Subgraph URL (for faster auction data)
-# VITE_BUILDER_DAO_SUBGRAPH_URL=https://your-subgraph-url.com
+# VITE_BUILDER_DAO_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-sepolia/dev/gn
 ```
 
 **Note:** These are default values already in the code. You can use them for testing, but for production you should use your own credentials.
