@@ -56,6 +56,14 @@ export interface ContentCoin {
   address?: string;
 }
 
+export interface ContentCoinsResult {
+  coins: ContentCoin[];
+  pageInfo: {
+    endCursor: string | null;
+    hasNextPage: boolean;
+  };
+}
+
 /**
  * Fetch coin data by contract address
  */
@@ -77,7 +85,9 @@ export async function fetchCoinData(
     const coin = response.data.zora20Token;
 
     // Skip blocked coins
-    if (coin.platformBlocked || coin.creatorProfile?.platformBlocked) {
+    const coinBlocked = (coin as any)?.platformBlocked;
+    const creatorBlocked = (coin.creatorProfile as any)?.platformBlocked;
+    if (coinBlocked || creatorBlocked) {
       console.warn('⚠️ [fetchCoinData] Coin or creator is blocked');
       return null;
     }
@@ -92,7 +102,7 @@ export async function fetchCoinData(
       marketCapDelta24h: coin.marketCapDelta24h || '0',
       totalSupply: coin.totalSupply || '0',
       uniqueHolders: coin.uniqueHolders || 0,
-      tokenPrice: coin.tokenPrice,
+      tokenPrice: coin.tokenPrice?.priceInUsdc ? { usdcPrice: coin.tokenPrice.priceInUsdc } : undefined,
       creatorProfile: coin.creatorProfile,
       mediaContent: coin.mediaContent,
     };
@@ -132,7 +142,7 @@ export async function fetchProfileData(identifier: string) {
     const profile = response.data.profile;
 
     // Skip blocked profiles
-    if (profile.platformBlocked) {
+    if ((profile as any)?.platformBlocked) {
       console.warn('⚠️ [fetchProfileData] Profile is blocked:', identifier);
       return null;
     }
@@ -155,34 +165,47 @@ export async function fetchProfileData(identifier: string) {
  */
 export async function fetchProfileCoins(
   identifier: string,
-  count: number = 4
-): Promise<ContentCoin[]> {
+  count: number = 4,
+  after?: string
+): Promise<ContentCoinsResult> {
   try {
     const cleanIdentifier = identifier.startsWith('@') ? identifier.slice(1) : identifier;
     const profileResponse = await getProfile({
       identifier: cleanIdentifier,
     });
+    const profileData = profileResponse.data?.profile as any;
 
     // Try dedicated endpoint, but gracefully fall back to the profile response if it fails
     let createdCoins =
-      profileResponse.data?.profile?.createdCoins?.edges || [];
+      profileData?.createdCoins?.edges || [];
+    let pageInfo = profileData?.createdCoins?.pageInfo;
 
     try {
       const coinsResponse = await getProfileCoins({
         identifier: cleanIdentifier,
         count,
+        after,
       });
       createdCoins = coinsResponse?.data?.profile?.createdCoins?.edges || createdCoins;
+      pageInfo = coinsResponse?.data?.profile?.createdCoins?.pageInfo || pageInfo;
     } catch (err) {
       console.warn('⚠️ [fetchProfileCoins] getProfileCoins fallback to profile data:', err);
     }
 
-    if (!createdCoins || createdCoins.length === 0) return [];
+    if (!createdCoins || createdCoins.length === 0) {
+      return {
+        coins: [],
+        pageInfo: {
+          endCursor: pageInfo?.endCursor ?? null,
+          hasNextPage: pageInfo?.hasNextPage ?? false,
+        },
+      };
+    }
 
-    return createdCoins
+    const coins = (createdCoins as any[])
       .slice(0, count)
-      .map((edge) => edge.node)
-      .map((node) => ({
+      .map((edge: any) => edge.node)
+      .map((node: any) => ({
         id: node.id || node.address,
         title: node.name || node.symbol || 'Content coin',
         address: node.address,
@@ -191,10 +214,24 @@ export async function fetchProfileCoins(
           node.mediaContent?.previewImage?.small ||
           node.mediaContent?.originalUri,
       }))
-      .filter((coin) => coin.id);
+      .filter((coin: ContentCoin) => coin.id);
+
+    return {
+      coins,
+      pageInfo: {
+        endCursor: pageInfo?.endCursor ?? null,
+        hasNextPage: pageInfo?.hasNextPage ?? false,
+      },
+    };
   } catch (error) {
     console.error('❌ [fetchProfileCoins] Error:', error);
-    return [];
+    return {
+      coins: [],
+      pageInfo: {
+        endCursor: null,
+        hasNextPage: false,
+      },
+    };
   }
 }
 

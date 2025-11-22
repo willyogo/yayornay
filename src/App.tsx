@@ -4,10 +4,8 @@ import { sdk } from '@farcaster/miniapp-sdk';
 import { LandingPage } from './components/LandingPage';
 import { AuctionPage } from './components/AuctionPage';
 import { SwipeStack } from './components/SwipeStack';
-import { CreatorFeedModal } from './components/CreatorFeedModal';
 import { useProposals } from './hooks/useProposals';
 import { useVoting } from './hooks/useVoting';
-import { Proposal } from './lib/supabase';
 import { AppHeader } from './components/AppHeader';
 
 type View = 'landing' | 'auction';
@@ -34,7 +32,6 @@ function App() {
   const [view, setView] = useState<View>('landing');
   const { proposals, loading } = useProposals(testMode);
   const { submitVote } = useVoting();
-  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
   
   // Track the view before connecting to return to it after login
   const previousViewRef = useRef<View | null>(null);
@@ -117,16 +114,8 @@ function App() {
         <SwipeStack
           proposals={proposals}
           onVote={submitVote}
-          onDetailClick={setSelectedProposal}
           testMode={testMode}
         />
-
-        {selectedProposal && (
-          <CreatorFeedModal
-            proposal={selectedProposal}
-            onClose={() => setSelectedProposal(null)}
-          />
-        )}
       </div>
     </TestModeContext.Provider>
   );

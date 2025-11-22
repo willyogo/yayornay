@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
-import { fetchCoinData, fetchProfileCoins, getCreatorCoinAddress, ZoraCoinData, ContentCoin } from '../lib/zora';
+import { useState, useEffect, useCallback } from 'react';
+import { fetchCoinData, fetchProfileCoins, getCreatorCoinAddress, ZoraCoinData, ContentCoin, ContentCoinsResult } from '../lib/zora';
 
 type CacheEntry = {
   coinData: ZoraCoinData | null;
   contentCoins: ContentCoin[];
+  contentCoinsPageInfo: ContentCoinsResult['pageInfo'];
 };
 
 // Simple in-memory cache to avoid refetching creators we've already loaded
 const coinCache = new Map<string, CacheEntry>();
 const pendingFetches = new Map<string, Promise<CacheEntry>>();
+const emptyPageInfo = { endCursor: null, hasNextPage: false };
+const CONTENT_PAGE_SIZE = 12;
 
 async function loadCreatorData(creatorIdentifier: string): Promise<CacheEntry> {
   const cached = coinCache.get(creatorIdentifier);
@@ -18,23 +21,29 @@ async function loadCreatorData(creatorIdentifier: string): Promise<CacheEntry> {
   if (existing) return existing;
 
   const fetchPromise = (async () => {
-    const profileCoinsPromise = fetchProfileCoins(creatorIdentifier, 4);
+    const profileCoinsPromise = fetchProfileCoins(creatorIdentifier, CONTENT_PAGE_SIZE);
     const coinAddress = await getCreatorCoinAddress(creatorIdentifier);
 
     if (!coinAddress) {
-      const entry: CacheEntry = { coinData: null, contentCoins: [] };
+      const profileCoinsResult = await profileCoinsPromise;
+      const entry: CacheEntry = {
+        coinData: null,
+        contentCoins: profileCoinsResult.coins,
+        contentCoinsPageInfo: profileCoinsResult.pageInfo || emptyPageInfo,
+      };
       coinCache.set(creatorIdentifier, entry);
       return entry;
     }
 
-    const [data, profileCoins] = await Promise.all([
+    const [data, profileCoinsResult] = await Promise.all([
       fetchCoinData(coinAddress),
       profileCoinsPromise,
     ]);
 
     const entry: CacheEntry = {
       coinData: data ?? null,
-      contentCoins: profileCoins || [],
+      contentCoins: profileCoinsResult.coins || [],
+      contentCoinsPageInfo: profileCoinsResult.pageInfo || emptyPageInfo,
     };
 
     coinCache.set(creatorIdentifier, entry);
@@ -65,7 +74,9 @@ export function useZoraCoin(creatorIdentifier: string | null) {
 
   const [coinData, setCoinData] = useState<ZoraCoinData | null>(initialCache?.coinData ?? null);
   const [contentCoins, setContentCoins] = useState<ContentCoin[]>(initialCache?.contentCoins ?? []);
+  const [contentCoinsPageInfo, setContentCoinsPageInfo] = useState<ContentCoinsResult['pageInfo']>(initialCache?.contentCoinsPageInfo ?? emptyPageInfo);
   const [loading, setLoading] = useState(() => !!creatorIdentifier && !initialCache);
+  const [loadingMoreContentCoins, setLoadingMoreContentCoins] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,6 +84,7 @@ export function useZoraCoin(creatorIdentifier: string | null) {
       setCoinData(null);
       setContentCoins([]);
       setLoading(false);
+      setContentCoinsPageInfo(emptyPageInfo);
       return;
     }
 
@@ -83,11 +95,13 @@ export function useZoraCoin(creatorIdentifier: string | null) {
     if (cached) {
       setCoinData(cached.coinData);
       setContentCoins(cached.contentCoins);
+      setContentCoinsPageInfo(cached.contentCoinsPageInfo);
       setLoading(false);
     } else {
       // Otherwise clear and show loading while we fetch fresh data
       setCoinData(null);
       setContentCoins([]);
+      setContentCoinsPageInfo(emptyPageInfo);
       setLoading(true);
     }
 
@@ -105,6 +119,7 @@ export function useZoraCoin(creatorIdentifier: string | null) {
 
         setCoinData(entry.coinData);
         setContentCoins(entry.contentCoins);
+        setContentCoinsPageInfo(entry.contentCoinsPageInfo);
 
         if (!entry.coinData) {
           setError('No creator coin found');
@@ -115,6 +130,7 @@ export function useZoraCoin(creatorIdentifier: string | null) {
           setError(err instanceof Error ? err.message : 'Failed to load coin');
           setCoinData(null);
           setContentCoins([]);
+          setContentCoinsPageInfo(emptyPageInfo);
         }
       } finally {
         if (mounted) {
@@ -130,5 +146,50 @@ export function useZoraCoin(creatorIdentifier: string | null) {
     };
   }, [creatorIdentifier]);
 
-  return { coinData, loading, error, contentCoins };
+  const hasMoreContentCoins = contentCoinsPageInfo.hasNextPage;
+
+  const loadMoreContentCoins = useCallback(async () => {
+    if (!creatorIdentifier || loadingMoreContentCoins || !contentCoinsPageInfo.hasNextPage) return;
+
+    setLoadingMoreContentCoins(true);
+    setError(null);
+
+    try {
+      const result = await fetchProfileCoins(
+        creatorIdentifier,
+        CONTENT_PAGE_SIZE,
+        contentCoinsPageInfo.endCursor || undefined
+      );
+
+      setContentCoins((prev) => {
+        const existingIds = new Set(prev.map((coin) => coin.id));
+        const merged = [...prev];
+
+        result.coins.forEach((coin) => {
+          if (!existingIds.has(coin.id)) {
+            merged.push(coin);
+          }
+        });
+
+        return merged;
+      });
+      setContentCoinsPageInfo(result.pageInfo || emptyPageInfo);
+    } catch (err) {
+      console.error('❌ [useZoraCoin] Error loading more content coins:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load content coins');
+    } finally {
+      setLoadingMoreContentCoins(false);
+    }
+  }, [contentCoinsPageInfo.endCursor, contentCoinsPageInfo.hasNextPage, creatorIdentifier, loadingMoreContentCoins]);
+
+  return {
+    coinData,
+    loading,
+    error,
+    contentCoins,
+    contentCoinsPageInfo,
+    hasMoreContentCoins,
+    loadMoreContentCoins,
+    loadingMoreContentCoins,
+  };
 }

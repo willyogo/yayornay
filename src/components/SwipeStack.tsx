@@ -8,11 +8,10 @@ import { prefetchZoraCoinData } from '../hooks/useZoraCoin';
 interface SwipeStackProps {
   proposals: Proposal[];
   onVote: (proposalId: string, voteType: VoteType) => Promise<void>;
-  onDetailClick: (proposal: Proposal) => void;
   testMode?: boolean;
 }
 
-export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: SwipeStackProps) {
+export function SwipeStack({ proposals, onVote, testMode }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -287,10 +286,7 @@ export function SwipeStack({ proposals, onVote, onDetailClick, testMode }: Swipe
               }
             >
               <div className="card-content relative w-full h-full cursor-grab active:cursor-grabbing">
-                <ProposalCard
-                  proposal={proposal}
-                  onDetailClick={() => onDetailClick(proposal)}
-                />
+                <ProposalCard proposal={proposal} />
               </div>
 
               {isTopCard && dragOffset.x > 40 && (
