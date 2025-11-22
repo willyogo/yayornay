@@ -77,17 +77,17 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
 
   return (
     <section className="w-full">
-      <div className="mx-auto w-full max-w-4xl rounded-3xl bg-white shadow-2xl overflow-hidden">
-        <div className="relative bg-gradient-to-br from-gray-100 to-gray-200">
-          <div className="aspect-[4/3] w-full flex items-center justify-center p-6 sm:p-10">
+      <div className="mx-auto w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+        <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200">
+          <div className="absolute inset-0 flex items-center justify-center">
             {nounId !== undefined ? (
               <NounImage
                 nounId={auction!.nounId}
-                className="h-full max-h-[360px] w-auto object-contain drop-shadow-2xl"
+                className="h-full w-full object-cover"
                 priority
               />
             ) : (
-              <div className="flex aspect-square w-full max-w-[320px] items-center justify-center rounded-2xl bg-white/70 text-sm text-gray-500 shadow-inner">
+              <div className="flex h-full w-full items-center justify-center bg-white/70 text-sm text-gray-500">
                 <span>Fetching Noun...</span>
               </div>
             )}
@@ -109,20 +109,7 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
                 }`}
                 aria-hidden="true"
               />
-              {status === 'ended'
-                ? 'Auction ended'
-                : status === 'pending'
-                ? 'Auction starting soon'
-                : status === 'active'
-                ? 'Auction live'
-                : 'Loading auction'}
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-              {isCurrentView
-                ? status === 'ended'
-                  ? '00:00'
-                  : countdownLabel
-                : 'Past auction'}
+              {status === 'ended' ? 'Auction ended' : status === 'pending' ? 'Auction starting soon' : status === 'active' ? 'Auction live' : 'Loading auction'}
             </span>
           </div>
 
