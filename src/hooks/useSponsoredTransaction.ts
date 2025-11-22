@@ -9,6 +9,7 @@ interface SponsoredTransactionOptions {
   abi: Abi;
   functionName: string;
   args?: unknown[];
+  value?: bigint;
   onSuccess?: (hash: `0x${string}`) => void;
   onError?: (error: Error) => void;
 }
@@ -89,7 +90,6 @@ export function useSponsoredTransaction() {
       const receipt = callsStatus.receipts[0];
       
       setTxHash(hash);
-      console.log('[Paymaster] Transaction confirmed:', hash);
       setIsSubmitting(false);
       
       // Resolve the pending promise
@@ -113,25 +113,10 @@ export function useSponsoredTransaction() {
     setTxHash(null);
 
     try {
-      console.log('[Paymaster] Executing sponsored transaction:', {
-        contract: options.address,
-        function: options.functionName,
-        args: options.args,
-        hasCapabilities: Object.keys(capabilities).length > 0,
-        capabilities,
-      });
-
       // Check if paymaster is available
       if (Object.keys(capabilities).length === 0) {
-        console.error('[Paymaster] ❌ No paymaster capabilities detected!');
-        console.error('[Paymaster] Make sure:');
-        console.error('  1. You are using a Coinbase Smart Wallet');
-        console.error('  2. VITE_PAYMASTER_URL is set in .env');
-        console.error('  3. CDP Paymaster is enabled for this chain');
         throw new Error('Paymaster not available. Ensure you are using a Coinbase Smart Wallet and VITE_PAYMASTER_URL is configured.');
       }
-
-      console.log('[Paymaster] ✅ Paymaster capabilities detected, submitting transaction...');
 
       // Execute transaction with paymaster capabilities
       // Build contract call object - only include args if they exist
@@ -146,6 +131,11 @@ export function useSponsoredTransaction() {
         contractCall.args = options.args;
       }
       
+      // Add value if provided (for payable functions)
+      if (options.value) {
+        contractCall.value = options.value;
+      }
+      
       const result = await writeContractsAsync({
         contracts: [contractCall],
         capabilities,
@@ -153,7 +143,6 @@ export function useSponsoredTransaction() {
 
       const id = typeof result === 'string' ? result : result.id;
       setCallsId(id);
-      console.log('[Paymaster] Transaction submitted with ID:', id);
 
       // Return a promise that will be resolved by the useEffect watching callsStatus
       return new Promise<{ hash: `0x${string}`; receipt?: unknown }>((resolve, reject) => {
@@ -178,7 +167,6 @@ export function useSponsoredTransaction() {
       });
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Transaction failed');
-      console.error('[Paymaster] Transaction error:', error);
       setError(error.message);
       setIsSubmitting(false);
       options.onError?.(error);

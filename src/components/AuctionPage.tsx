@@ -2,14 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAccount, useConnect } from 'wagmi';
-import { simulateContract } from 'wagmi/actions';
-import { config } from '../lib/wagmi';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
 import { AppView } from '../types/view';
-import { CHAIN_CONFIG } from '../config/constants';
 import AuctionHero from './AuctionHero';
 import BidModal from './BidModal';
 import { getAuctionStatus } from '../utils/auction';
@@ -45,7 +42,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   const [isSettling, setIsSettling] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [viewNounId, setViewNounId] = useState<number | null>(null);
   const [displayAuction, setDisplayAuction] = useState<Auction | undefined>();
   const [displayCountdown, setDisplayCountdown] = useState(0);
@@ -222,12 +218,11 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       try {
         setBidSubmitting(true);
         setActionError(null);
-        setActionMessage('Submitting sponsored bid...');
-
-        console.log('[Auction] Placing sponsored bid:', {
-          nounId: auction.nounId,
-          value: valueWei.toString(),
-        });
+        setActionMessage(
+          sponsoredTx.hasPaymasterSupport
+            ? 'Submitting gasless bid...'
+            : 'Submitting bid...'
+        );
 
         // Execute sponsored bid transaction
         await sponsoredTx.execute({
@@ -235,10 +230,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
           abi: AUCTION_HOUSE_ABI,
           functionName: 'createBid',
           args: [auction.nounId],
-          onSuccess: (txHash) => {
-            console.log('[Auction] Bid confirmed:', txHash);
-            setTxHash(txHash);
-          },
+          value: valueWei,
         });
 
         setActionMessage('Bid confirmed!');
@@ -261,77 +253,18 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     async (fnName: 'settleAuction' | 'settleCurrentAndCreateNewAuction') => {
       if (!auction) return null;
       try {
-        console.log('[Auction] 🔍 Simulating settle transaction first...');
-        console.log('[Auction] Function:', fnName);
-        console.log('[Auction] Contract:', CONTRACTS.AUCTION_HOUSE);
-        console.log('[Auction] Auction state:', {
-          nounId: auction.nounId.toString(),
-          settled: auction.settled,
-          endTime: new Date(Number(auction.endTime) * 1000).toISOString(),
-          now: new Date().toISOString(),
-        });
-        
-        // First, simulate the transaction to see if it would succeed
-        try {
-          const simulation = await simulateContract(config, {
-            address: CONTRACTS.AUCTION_HOUSE,
-            abi: AUCTION_HOUSE_ABI,
-            functionName: fnName,
-            account: address,
-          });
-          
-          console.log('[Auction] ✅ Simulation successful!', simulation);
-        } catch (simError: any) {
-          console.error('[Auction] ❌ Simulation failed:', simError);
-          console.error('[Auction] Error details:', {
-            message: simError.message,
-            cause: simError.cause,
-            shortMessage: simError.shortMessage,
-            data: simError.data,
-          });
-          
-          // Try to extract revert reason
-          if (simError.message) {
-            // Check for UNPAUSED() error signature
-            if (simError.message.includes('0x6d76f93d') || simError.message.includes('UNPAUSED')) {
-              throw new Error('❌ The auction contract is PAUSED. The contract owner needs to unpause it before auctions can be settled. This is a contract-level restriction that cannot be bypassed.');
-            } else if (simError.message.includes('Auction not yet ended')) {
-              throw new Error('Auction has not ended yet. Wait for the auction to end before settling.');
-            } else if (simError.message.includes('Auction already settled')) {
-              throw new Error('This auction has already been settled.');
-            } else if (simError.message.includes('Contract is paused')) {
-              throw new Error('The auction contract is currently paused.');
-            }
-          }
-          
-          throw new Error(`Settlement simulation failed: ${simError.shortMessage || simError.message}`);
-        }
-        
-        console.log('[Auction] Attempting sponsored settle:', {
-          function: fnName,
-          contract: CONTRACTS.AUCTION_HOUSE,
-        });
-        
-        // Use sponsored transaction just like voting does
-        const { hash } = await sponsoredTx.execute({
+        await sponsoredTx.execute({
           address: CONTRACTS.AUCTION_HOUSE,
           abi: AUCTION_HOUSE_ABI,
           functionName: fnName,
-          onSuccess: (txHash) => {
-            console.log('[Auction] ✅ Settle confirmed:', txHash);
-            setTxHash(txHash);
-          },
         });
-        
-        console.log('[Auction] Settle transaction hash:', hash);
         
         return 'success';
       } catch (error: any) {
-        console.error(`[Auction] ❌ ${fnName} failed:`, error);
         throw error;
       }
     },
-    [auction, sponsoredTx, address]
+    [auction, sponsoredTx]
   );
 
   const handleSettle = useCallback(async () => {
@@ -486,23 +419,10 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
             />
           )}
 
-          {(actionMessage || actionError || txHash) && (
+          {(actionMessage || actionError) && (
             <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm shadow-sm">
               {actionMessage && <p className="font-medium">{actionMessage}</p>}
               {actionError && <p className="text-red-600">{actionError}</p>}
-              {txHash && (
-                <p className="text-xs text-muted-foreground">
-                  Tx hash:{' '}
-                  <a
-                    href={`${CHAIN_CONFIG.BLOCK_EXPLORER_URL}/tx/${txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    {txHash.slice(0, 10)}...
-                  </a>
-                </p>
-              )}
             </div>
           )}
         </div>
