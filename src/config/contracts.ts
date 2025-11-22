@@ -1,11 +1,5 @@
-// Builder DAO testnet contracts on Base Sepolia
-export const CONTRACTS = {
-  NFT: '0x626FbB71Ca4FE65F94e73AB842148505ae1a0B26',
-  AUCTION_HOUSE: '0xe9609Fb710bDC6f88Aa5992014a156aeb31A6896',
-  GOVERNOR: '0x9F530c7bCdb859bB1DcA3cD4EAE644f973A5f505',
-  TREASURY: '0x3ed26c1d23Fd4Ea3B5e2077B60B4F1EC80Aba94f',
-  METADATA: '0x82ACd8e6ea567d99B63fcFc21ec824b5D05C9744',
-} as const;
+// Re-export contracts from constants for backward compatibility
+export { CONTRACTS } from './constants';
 
 // Nouns Builder Auction House ABI (minimal functions needed)
 export const AUCTION_HOUSE_ABI = [

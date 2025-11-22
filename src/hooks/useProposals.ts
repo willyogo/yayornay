@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Proposal } from '../lib/supabase';
-import { APP_CONFIG } from '../config/app';
+import { DAO_ADDRESS } from '../config/constants';
 import { fetchActiveProposalsFromSubgraph, SubgraphProposal } from '../lib/yaynaySubgraph';
 
-const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['’]s creator coin/i;
-const TITLE_CREATOR_REGEX = /purchase\s+([a-zA-Z0-9._-]+)['’]s creator coin/i;
+const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['']s creator coin/i;
+const TITLE_CREATOR_REGEX = /purchase\s+([a-zA-Z0-9._-]+)['']s creator coin/i;
 const HANDLE_REGEX = /@([a-zA-Z0-9._-]+)/;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -44,7 +44,7 @@ const descriptions = [
 
 const mockProposals: Proposal[] = testCreators.map((creator, index) => ({
   id: `mock-${index + 1}`,
-  dao_address: APP_CONFIG.DAO_ADDRESS.toLowerCase(),
+  dao_address: DAO_ADDRESS.toLowerCase(),
   proposal_id: `test-${index + 1}`,
   creator_address: `0x${Math.random().toString(16).slice(2, 42).padEnd(40, '0')}`,
   creator_username: creator,
@@ -91,7 +91,7 @@ const normalizeSubgraphProposal = (proposal: SubgraphProposal): Proposal => {
 
   return {
     id: proposalId,
-    dao_address: (proposal.dao?.governorAddress || APP_CONFIG.DAO_ADDRESS).toLowerCase(),
+    dao_address: (proposal.dao?.governorAddress || DAO_ADDRESS).toLowerCase(),
     proposal_id: proposal.proposalId || proposalId,
     creator_address: (proposal.proposer || ZERO_ADDRESS).toLowerCase(),
     creator_username: creatorHandle,

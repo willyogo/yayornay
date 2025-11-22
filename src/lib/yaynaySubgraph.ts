@@ -1,4 +1,4 @@
-import { APP_CONFIG } from '../config/app';
+import { DAO_ADDRESS } from '../config/constants';
 
 const DEFAULT_YAYNAY_SUBGRAPH_URL =
   'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-sepolia/dev/gn';
@@ -134,7 +134,7 @@ export async function fetchActiveProposalsFromSubgraph(
 ): Promise<SubgraphProposal[]> {
   const now = Math.floor(Date.now() / 1000);
   const where = {
-    dao: APP_CONFIG.DAO_ADDRESS.toLowerCase(),
+    dao: DAO_ADDRESS.toLowerCase(),
     voteStart_lte: now,
     voteEnd_gt: now,
   };

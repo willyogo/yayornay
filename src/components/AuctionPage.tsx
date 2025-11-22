@@ -10,6 +10,7 @@ import { parseEther } from 'viem';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
 import { AppView } from '../types/view';
+import { CHAIN_CONFIG } from '../config/constants';
 import AuctionHero from './AuctionHero';
 import BidModal from './BidModal';
 import { getAuctionStatus } from '../utils/auction';
@@ -471,7 +472,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
                 <p className="text-xs text-muted-foreground">
                   Tx hash:{' '}
                   <a
-                    href={`https://sepolia.basescan.org/tx/${txHash}`}
+                    href={`${CHAIN_CONFIG.BLOCK_EXPLORER_URL}/tx/${txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline"
