@@ -8,6 +8,7 @@ import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
+import { useSponsoredTransaction } from '../hooks/useSponsoredTransaction';
 import { AppView } from '../types/view';
 import { CHAIN_CONFIG } from '../config/constants';
 import AuctionHero from './AuctionHero';
@@ -39,6 +40,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     refetch,
   } = useAuction();
 
+  const sponsoredTx = useSponsoredTransaction();
   const [bidModalOpen, setBidModalOpen] = useState(false);
   const [bidSubmitting, setBidSubmitting] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
@@ -221,48 +223,26 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       try {
         setBidSubmitting(true);
         setActionError(null);
-        setActionMessage('Waiting for wallet signature...');
+        setActionMessage('Submitting sponsored bid...');
 
-        // Try to simulate first
-        let hash: `0x${string}` | undefined;
-        try {
-          const simulation = await simulateContract(config, {
-            address: CONTRACTS.AUCTION_HOUSE,
-            abi: AUCTION_HOUSE_ABI,
-            functionName: 'createBid',
-            args: [auction.nounId],
-            value: valueWei,
-            account: address!,
-          });
-          setActionMessage('Transaction submitted. Waiting for confirmation...');
-          hash = await writeContractAsync(simulation.request);
-        } catch {
-          // Fallback to direct write if simulation fails
-          setActionMessage('Submitting transaction...');
-          hash = await writeContractAsync({
-            address: CONTRACTS.AUCTION_HOUSE,
-            abi: AUCTION_HOUSE_ABI,
-            functionName: 'createBid',
-            args: [auction.nounId],
-            value: valueWei,
-          });
-        }
-
-        if (!hash) throw new Error('No transaction hash');
-
-        setTxHash(hash);
-        const receipt = await waitForTransactionReceipt(config, {
-          hash,
-          timeout: 60_000,
+        console.log('[Auction] Placing sponsored bid:', {
+          nounId: auction.nounId,
+          value: valueWei.toString(),
         });
 
-        if (receipt.status === 'success') {
-          setActionMessage('Bid confirmed!');
-          setBidModalOpen(false);
-          await refetch();
-        } else {
-          setActionError('Bid transaction failed');
-        }
+        // Execute sponsored bid transaction
+        const { hash } = await sponsoredTx.execute({
+          address: CONTRACTS.AUCTION_HOUSE,
+          abi: AUCTION_HOUSE_ABI,
+          functionName: 'createBid',
+          args: [auction.nounId],
+          value: valueWei,
+        });
+
+        setTxHash(hash);
+        setActionMessage('Bid confirmed!');
+        setBidModalOpen(false);
+        await refetch();
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Failed to place bid';
@@ -273,7 +253,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         setTimeout(() => setActionMessage(null), 6000);
       }
     },
-    [auction, isConnected, address, writeContractAsync, refetch]
+    [auction, isConnected, sponsoredTx, refetch]
   );
 
   const attemptSettle = useCallback(
