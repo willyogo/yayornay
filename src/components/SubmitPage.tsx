@@ -81,33 +81,51 @@ const FALLBACK_DISPLAY = {
 };
 
 const DEBOUNCE_MS = 400;
-const DEFAULT_SUBMISSION_ENDPOINT = 'https://164.152.26.43/api/analyze';
+const DEFAULT_SUBMISSION_ENDPOINT = 'http://164.152.26.43/api/analyze';
 const SUBMISSION_ENDPOINT =
   import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_SUBMISSION_ENDPOINT;
+const CORS_PROXIES = ['https://corsproxy.io/?'];
 
-function getSubmissionEndpoints(): string[] {
-  if (!SUBMISSION_ENDPOINT) return [];
+function wrapIfHttpsPage(endpoint: string): string[] {
+  const isHttp = endpoint.startsWith('http://');
+  const isHttpsPage =
+    typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-  const endpoints = [SUBMISSION_ENDPOINT];
+  if (!isHttp || !isHttpsPage) return [endpoint];
 
-  // If we only have an https endpoint, prepare an http fallback to handle TLS blocks or proxies.
-  if (SUBMISSION_ENDPOINT.startsWith('https://')) {
-    const httpFallback = SUBMISSION_ENDPOINT.replace('https://', 'http://');
-    if (httpFallback !== SUBMISSION_ENDPOINT) {
-      endpoints.push(httpFallback);
+  return CORS_PROXIES.map((proxy) => `${proxy}${endpoint}`);
+}
+
+function addEndpointWithVariants(endpoint: string, collector: Set<string>) {
+  const variants = [endpoint];
+
+  if (endpoint.startsWith('https://')) {
+    variants.push(endpoint.replace('https://', 'http://'));
+  } else if (endpoint.startsWith('http://')) {
+    variants.push(endpoint.replace('http://', 'https://'));
+  }
+
+  for (const variant of variants) {
+    for (const candidate of wrapIfHttpsPage(variant)) {
+      if (!collector.has(candidate)) {
+        collector.add(candidate);
+      }
     }
   }
+}
 
-  // Ensure the hardcoded default and its http sibling are always available as last resort.
-  if (!endpoints.includes(DEFAULT_SUBMISSION_ENDPOINT)) {
-    endpoints.push(DEFAULT_SUBMISSION_ENDPOINT);
-  }
-  const defaultHttp = DEFAULT_SUBMISSION_ENDPOINT.replace('https://', 'http://');
-  if (!endpoints.includes(defaultHttp)) {
-    endpoints.push(defaultHttp);
+function getSubmissionEndpoints(): string[] {
+  const endpoints = new Set<string>();
+
+  if (SUBMISSION_ENDPOINT) {
+    addEndpointWithVariants(SUBMISSION_ENDPOINT, endpoints);
   }
 
-  return endpoints;
+  if (DEFAULT_SUBMISSION_ENDPOINT) {
+    addEndpointWithVariants(DEFAULT_SUBMISSION_ENDPOINT, endpoints);
+  }
+
+  return Array.from(endpoints);
 }
 
 const mockQueueResponse = {
