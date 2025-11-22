@@ -7,37 +7,57 @@
 supabase start
 ```
 
-### Step 2: Restart Edge Functions (to pick up env vars)
+### Step 2: Serve Edge Functions (with env file)
 ```bash
-# Stop current serve (Ctrl+C), then:
-supabase functions serve
+supabase functions serve --env-file .env
 ```
 
-**Important**: Edge Functions need to be restarted after setting environment variables.
+**Note**: Use `--env-file .env` or `--env-file .env.local` to ensure Edge Functions can access CDP credentials.
 
 ### Step 3: Run the test
 ```bash
 ./test-wallet-simple.sh
 ```
 
-## Alternative: Set secrets manually
-
-If Edge Functions aren't picking up `.env.local`, you can set them as secrets:
-
+Or use the comprehensive test script:
 ```bash
-# Load from .env.local and set secrets
-export $(cat .env.local | grep -v '^#' | xargs)
-supabase secrets set VITE_CDP_API_KEY="$VITE_CDP_API_KEY"
-supabase secrets set VITE_CDP_API_SECRET="$VITE_CDP_API_SECRET"
-supabase secrets set VITE_SUPABASE_URL="$VITE_SUPABASE_URL"
-supabase secrets set VITE_SUPABASE_ANON_KEY="$VITE_SUPABASE_ANON_KEY"
+npx tsx scripts/test-server-wallets.ts
 ```
 
-But for local dev, restarting `supabase functions serve` should pick up `.env.local` automatically.
+## Prerequisites Checklist
 
-## Check if it's working
+- [ ] Supabase running: `supabase start`
+- [ ] Edge Functions serving: `supabase functions serve --env-file .env`
+- [ ] Database migration applied: `supabase db reset` (or migrations auto-applied)
+- [ ] `.env` or `.env.local` file has:
+  - `VITE_SUPABASE_URL=http://localhost:54321`
+  - `VITE_SUPABASE_ANON_KEY=<from supabase start>`
+  - `VITE_CDP_API_KEY=<your-cdp-key>`
+  - `VITE_CDP_API_SECRET=<your-cdp-secret>`
 
-The test script will show:
-- ✅ Success: `{"serverWalletAddress": "0x...", "walletId": "...", "message": "Wallet created successfully"}`
-- ❌ Error: Shows what's missing (credentials, database, etc.)
+## Expected Output
 
+If successful, you should see:
+```json
+{
+  "serverWalletAddress": "0x...",
+  "walletId": "...",
+  "message": "Wallet created successfully"
+}
+```
+
+## Troubleshooting
+
+**Error: "Missing CDP API credentials"**
+- Check `.env` file has `VITE_CDP_API_KEY` and `VITE_CDP_API_SECRET`
+- Restart Edge Functions with `--env-file .env` flag
+
+**Error: "Table server_wallets does not exist"**
+- Run: `supabase db reset` to apply migrations
+
+**Error: "Edge Function returned 500"**
+- Check Edge Functions are serving: `supabase functions serve --env-file .env`
+- Check Edge Function logs for details
+
+**Error: "Connection refused"**
+- Make sure Supabase is running: `supabase start`

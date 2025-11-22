@@ -1,5 +1,25 @@
 # Local Testing Guide for Server Wallets
 
+## Quick Start
+
+The simplest way to test wallet creation:
+
+```bash
+# 1. Start Supabase
+supabase start
+
+# 2. Serve Edge Functions (with env file)
+supabase functions serve --env-file .env
+
+# 3. Run the test
+./test-wallet-simple.sh
+```
+
+Or use the TypeScript script:
+```bash
+npx tsx scripts/test-server-wallets.ts
+```
+
 ## Prerequisites
 
 1. **Supabase CLI** installed:

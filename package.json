@@ -16,8 +16,7 @@
     "test:integration": "vitest run src/test/integration",
     "test:e2e": "vitest run src/test/e2e",
     "test:e2e:integration": "vitest run src/test/integration/edgeFunctions.e2e.test.ts",
-    "test:server-wallets": "tsx scripts/test-server-wallets.ts",
-    "test:create-wallet": "tsx scripts/test-create-wallet.ts"
+    "test:server-wallets": "tsx scripts/test-server-wallets.ts"
   },
   "dependencies": {
     "@buildeross/sdk": "^0.2.1",

@@ -121,24 +121,18 @@ serve(async (req) => {
     } else if (wallet.walletId) {
       walletId = wallet.walletId
     } else {
-      // Use address as identifier if wallet ID not available
+      // Use address as identifier if wallet ID not available (shouldn't happen with CDP SDK)
       walletId = serverWalletAddress
-      console.warn('Could not find wallet ID, using address as ID')
     }
 
     // Serialize wallet data for storage
-    // CDP SDK may not have serialize() - store wallet object as JSON or minimal data
+    // CDP SDK uses wallet.export() to get serialized wallet data
     let walletData: any
     try {
-      if (typeof wallet.serialize === 'function') {
-        walletData = wallet.serialize()
-      } else if (typeof wallet.toJSON === 'function') {
-        walletData = wallet.toJSON()
-      } else if (typeof wallet.export === 'function') {
+      if (typeof wallet.export === 'function') {
         walletData = await wallet.export()
       } else {
-        // Store wallet object directly (CDP manages it server-side)
-        // We only need to store enough info to identify it later
+        // Fallback: store minimal data (CDP manages wallet server-side)
         walletData = {
           id: walletId,
           address: serverWalletAddress,
@@ -146,11 +140,11 @@ serve(async (req) => {
         }
       }
     } catch (err) {
-      console.error('Error serializing wallet:', err)
+      console.error('Error exporting wallet:', err)
       // Fallback: store minimal data
       walletData = {
         id: walletId,
-        address: address.address,
+        address: serverWalletAddress,
         networkId: 'base-sepolia',
       }
     }
