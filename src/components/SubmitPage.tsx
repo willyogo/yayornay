@@ -88,7 +88,7 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
     !loading &&
     submissionState !== 'submitting';
 
-  const showDetails = Boolean(creatorIdentifier || loading);
+  const showDetails = Boolean(creatorIdentifier && !loading && coinData);
   const creatorLabel = creatorIdentifier || '@creator';
   const profileImage =
     displayData.profileImage || getAvatarUrl(creatorIdentifier || '@creator');
@@ -121,26 +121,18 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
       <main className="flex-1">
         <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
           <section className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-gray-900">Submit a creator</h1>
-              <p className="text-sm text-gray-600">
-                Enter a Zora creator handle to preview their coin details. We will
-                send the handle to our review queue once you hit submit.
-              </p>
-            </div>
-
             <form className="space-y-3" onSubmit={handleSubmit}>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                Creator handle
-              </label>
               <div className="flex flex-col md:flex-row gap-3">
                 <div className="flex-1 relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
+                    @
+                  </span>
                   <input
                     type="text"
-                    value={`@${handleInput}`}
+                    value={handleInput}
                     onChange={(e) => handleInputChange(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-lg font-medium text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="@creator"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-9 py-3 text-lg font-medium text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 placeholder:text-gray-400"
+                    placeholder="zora_creator"
                     inputMode="text"
                     autoComplete="off"
                   />
@@ -165,10 +157,6 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                 </button>
               </div>
 
-              <p className="text-xs text-gray-500">
-                The @ is always pinned so you only need to type the handle name.
-              </p>
-
               {submissionState === 'success' && (
                 <div className="inline-flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                   <CheckCircle2 className="w-4 h-4" />
@@ -185,24 +173,7 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
             </form>
           </section>
 
-          <section className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-400">
-                  Creator details
-                </p>
-                <p className="text-sm font-semibold text-gray-800">
-                  {creatorIdentifier ? creatorIdentifier : 'Enter a handle to preview'}
-                </p>
-              </div>
-              {loading && (
-                <div className="inline-flex items-center gap-2 text-xs text-gray-500 bg-gray-100 rounded-full px-3 py-1.5">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Fetching data
-                </div>
-              )}
-            </div>
-
+          <div className="space-y-3">
             {error && (
               <div className="inline-flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 <AlertCircle className="w-4 h-4" />
@@ -210,8 +181,15 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
               </div>
             )}
 
-            {showDetails ? (
-              <div className="rounded-3xl overflow-hidden border border-gray-100 shadow-lg">
+            {loading && creatorIdentifier && (
+              <div className="inline-flex items-center gap-2 text-xs text-gray-500 bg-gray-100 rounded-full px-3 py-1.5">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Fetching data
+              </div>
+            )}
+
+            {showDetails && (
+              <div className="rounded-3xl overflow-hidden border border-gray-100 shadow-lg fade-in">
                 <div className="px-6 py-4 flex items-center gap-3 bg-white">
                   <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
                     <img
@@ -238,10 +216,6 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                 </div>
 
                 <div className="px-6 pb-6 space-y-3">
-                  <h3 className="text-base font-semibold text-gray-900">
-                    {displayData.displayName || creatorLabel}&apos;s creator coin
-                  </h3>
-
                   <div className="grid grid-cols-2 gap-2.5">
                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-2.5 border border-blue-200/50">
                       <div className="flex items-center gap-1.5 text-blue-700 text-[10px] mb-0.5 font-medium">
@@ -294,12 +268,8 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center text-gray-500">
-                Start by entering a creator handle above to see their details.
-              </div>
             )}
-          </section>
+          </div>
         </div>
       </main>
     </div>
