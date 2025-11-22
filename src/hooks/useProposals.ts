@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
-import { supabase, Proposal } from '../lib/supabase';
+import { Proposal } from '../lib/supabase';
 import { APP_CONFIG } from '../config/app';
+import { fetchActiveProposalsFromSubgraph, SubgraphProposal } from '../lib/yaynaySubgraph';
+
+const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['’]s creator coin/i;
+const TITLE_CREATOR_REGEX = /purchase\s+([a-zA-Z0-9._-]+)['’]s creator coin/i;
+const HANDLE_REGEX = /@([a-zA-Z0-9._-]+)/;
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 const testCreators = [
   '@bloodpiano',
@@ -50,37 +56,107 @@ const mockProposals: Proposal[] = testCreators.map((creator, index) => ({
   updated_at: new Date(Date.now() - index * 86400000).toISOString()
 }));
 
+const toIsoFromSeconds = (value?: string | number | null) => {
+  const numeric = typeof value === 'string' ? Number(value) : value;
+  if (numeric === undefined || numeric === null || Number.isNaN(numeric)) {
+    return new Date().toISOString();
+  }
+  return new Date(numeric * 1000).toISOString();
+};
+
+const buildProposalId = (proposal: SubgraphProposal) => {
+  if (proposal.proposalId) return proposal.proposalId;
+  if (proposal.proposalNumber !== undefined && proposal.proposalNumber !== null) {
+    return `proposal-${proposal.proposalNumber}`;
+  }
+  if (proposal.transactionHash) {
+    return proposal.transactionHash;
+  }
+  return `proposal-${proposal.proposer}-${proposal.voteStart}`;
+};
+
+const extractCreatorHandle = (proposal: SubgraphProposal) => {
+  const title = proposal.title || '';
+  const matchesPurchase = PURCHASE_TITLE_REGEX.test(title);
+  if (!matchesPurchase) return null;
+
+  const descriptionHandle = proposal.description?.match(HANDLE_REGEX)?.[1];
+  const titleHandle = title.match(TITLE_CREATOR_REGEX)?.[1];
+  const handle = descriptionHandle || titleHandle;
+
+  if (!handle) return null;
+  return handle.startsWith('@') ? handle : `@${handle}`;
+};
+
+const normalizeSubgraphProposal = (proposal: SubgraphProposal): Proposal => {
+  const creatorHandle = extractCreatorHandle(proposal);
+  const proposalId = buildProposalId(proposal);
+
+  return {
+    id: proposalId,
+    dao_address: (proposal.dao?.governorAddress || APP_CONFIG.DAO_ADDRESS).toLowerCase(),
+    proposal_id: proposal.proposalId || proposalId,
+    creator_address: (proposal.proposer || ZERO_ADDRESS).toLowerCase(),
+    creator_username: creatorHandle,
+    title: proposal.title || `Proposal #${proposal.proposalNumber ?? proposalId}`,
+    description: proposal.description || null,
+    cover_image_url: null,
+    status: 'active',
+    created_at: toIsoFromSeconds(proposal.timeCreated),
+    updated_at: toIsoFromSeconds(proposal.voteEnd || proposal.expiresAt || proposal.timeCreated),
+  };
+};
+
 export function useProposals(testMode: boolean = false) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isActive = true;
+
     async function fetchProposals() {
+      setLoading(true);
+      setError(null);
+
       try {
-        if (testMode) {
-          setProposals(mockProposals);
-          setLoading(false);
-          return;
+        // Always try to query from subgraph first
+        const subgraphProposals = await fetchActiveProposalsFromSubgraph();
+        
+        if (isActive) {
+          if (subgraphProposals.length > 0) {
+            // Use proposals from subgraph
+            setProposals(subgraphProposals.map(normalizeSubgraphProposal));
+          } else if (testMode) {
+            // Fallback to mock proposals only in test mode if no subgraph proposals found
+            setProposals(mockProposals);
+          } else {
+            // No proposals found from subgraph and not in test mode
+            setProposals([]);
+          }
         }
-
-        const { data, error } = await supabase
-          .from('proposals')
-          .select('*')
-          .eq('dao_address', APP_CONFIG.DAO_ADDRESS.toLowerCase())
-          .eq('status', 'active')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setProposals(data || []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch proposals');
+        if (isActive) {
+          // If subgraph query fails and we're in test mode, use mocks
+          if (testMode) {
+            setProposals(mockProposals);
+          } else {
+            setProposals([]);
+            setError(err instanceof Error ? err.message : 'Failed to fetch proposals from subgraph');
+          }
+        }
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     }
 
     fetchProposals();
+
+    return () => {
+      isActive = false;
+    };
   }, [testMode]);
 
   return { proposals, loading, error };
