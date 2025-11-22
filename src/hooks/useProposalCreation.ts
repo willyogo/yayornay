@@ -54,7 +54,7 @@ export function useProposalCreation() {
       setStatus('submitting');
 
       // Format description with title
-      const fullDescription = `# ${title}\n\n${description}\n\n---\n\n**Coin Purchase Details:**\n- Coin: ${transaction.coinName || transaction.coinAddress}\n- ETH Amount: ${transaction.ethAmount} ETH\n- Slippage Tolerance: ${transaction.slippage}%`;
+      const fullDescription = `${title}&&${description}\n\n---\n\n**Coin Purchase Details:**\n- Coin: ${transaction.coinName || transaction.coinAddress}\n- ETH Amount: ${transaction.ethAmount} ETH\n- Slippage Tolerance: ${transaction.slippage}%`;
 
       // Try to simulate first for better error handling
       let hash: `0x${string}` | undefined;
