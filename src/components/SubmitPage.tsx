@@ -81,88 +81,9 @@ const FALLBACK_DISPLAY = {
 };
 
 const DEBOUNCE_MS = 400;
-const DEFAULT_SUBMISSION_ENDPOINT = 'https://164.152.26.43/api/analyze';
+const DEFAULT_SUBMISSION_ENDPOINT = 'https://api.yaynay.wtf/api/analyze';
 const SUBMISSION_ENDPOINT =
   import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_SUBMISSION_ENDPOINT;
-
-type EndpointVariant = { url: string; headers?: Record<string, string> };
-
-const CORS_PROXIES: ((endpoint: string) => EndpointVariant)[] = [
-  // corsproxy.io expects the upstream URL to be URL-encoded and supports POST
-  (endpoint: string) => ({
-    url: `https://corsproxy.io/?${encodeURIComponent(endpoint)}`,
-  }),
-  // isomorphic-git proxy supports HTTPS pages and relaxed SSL handling
-  (endpoint: string) => ({
-    url: `https://cors.isomorphic-git.org/${encodeURIComponent(endpoint)}`,
-  }),
-  // thingproxy is lenient toward self-signed certificates while returning CORS headers
-  (endpoint: string) => ({
-    url: `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(endpoint)}`,
-  }),
-  // cors.sh explicitly supports POST with self-signed upstreams and requires a permissive API key header
-  (endpoint: string) => ({
-    url: `https://proxy.cors.sh/${endpoint}`,
-    headers: { 'x-cors-api-key': 'temp-key' },
-  }),
-];
-
-function wrapIfHttpsPage(endpoint: string): EndpointVariant[] {
-  const isHttp = endpoint.startsWith('http://');
-  const isHttpsPage =
-    typeof window !== 'undefined' && window.location.protocol === 'https:';
-
-  // Always include the raw endpoint so HTTP deployments can still call it directly.
-  // When the app runs over HTTPS, browsers will block direct HTTP requests, so we
-  // prepend HTTPS-friendly proxy variants to keep a working option.
-  const proxied = CORS_PROXIES.map((proxyBuilder) => proxyBuilder(endpoint));
-
-  if (!isHttpsPage) {
-    return [{ url: endpoint }];
-  }
-
-  // For HTTPS pages hitting HTTP endpoints, only use the proxies to avoid mixed-content.
-  if (isHttp) return proxied;
-
-  // For HTTPS upstreams (including those with self-signed certs), try the raw endpoint
-  // first, then fall back to proxies that may ignore TLS validation.
-  return [{ url: endpoint }, ...proxied];
-}
-
-function addEndpointWithVariants(
-  endpoint: string,
-  collector: Map<string, EndpointVariant>
-) {
-  const variants = [endpoint];
-
-  if (endpoint.startsWith('https://')) {
-    variants.push(endpoint.replace('https://', 'http://'));
-  } else if (endpoint.startsWith('http://')) {
-    variants.push(endpoint.replace('http://', 'https://'));
-  }
-
-  for (const variant of variants) {
-    for (const candidate of wrapIfHttpsPage(variant)) {
-      if (!collector.has(candidate.url)) {
-        collector.set(candidate.url, candidate);
-      }
-    }
-  }
-}
-
-function getSubmissionEndpoints(): EndpointVariant[] {
-  const endpoints = new Map<string, EndpointVariant>();
-
-  if (SUBMISSION_ENDPOINT) {
-    addEndpointWithVariants(SUBMISSION_ENDPOINT, endpoints);
-  }
-
-  if (DEFAULT_SUBMISSION_ENDPOINT) {
-    addEndpointWithVariants(DEFAULT_SUBMISSION_ENDPOINT, endpoints);
-  }
-
-  return Array.from(endpoints.values());
-}
 
 const mockQueueResponse = {
   stats: {
@@ -226,29 +147,23 @@ const mockSubmitCreator = async (creator: string): Promise<AnalysisResponse> => 
 };
 
 async function postSubmission(body: Record<string, unknown>) {
-  const endpoints = getSubmissionEndpoints();
-  let lastError: unknown = null;
+  const endpoint = SUBMISSION_ENDPOINT;
 
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(endpoint.headers || {}) },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Endpoint returned ${response.status}`);
-      }
-
-      return response.json();
-    } catch (err) {
-      lastError = err;
-      console.warn(`Submission endpoint failed at ${endpoint}`, err);
-    }
+  if (!endpoint) {
+    throw new Error('No submission endpoint configured');
   }
 
-  throw lastError || new Error('No submission endpoint configured');
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Endpoint returned ${response.status}`);
+  }
+
+  return response.json();
 }
 
 async function fetchVotingQueue() {
