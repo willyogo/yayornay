@@ -12,18 +12,10 @@ interface ProposalCardProps {
 export function ProposalCard({ proposal, onDetailClick }: ProposalCardProps) {
   const [imageError, setImageError] = useState(false);
   
-  console.log('🎴 [ProposalCard] Rendering card for:', proposal.creator_username || proposal.creator_address);
-  
   // Fetch real Zora coin data
   const { coinData, loading, contentCoins } = useZoraCoin(
     proposal.creator_username || proposal.creator_address
   );
-
-  console.log('🎴 [ProposalCard] Hook state:', { 
-    hasCoinData: !!coinData, 
-    loading,
-    coinName: coinData?.name
-  });
 
   // Fallback to mock data if no coin data available
   const displayData = coinData ? {
