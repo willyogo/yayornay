@@ -117,24 +117,37 @@ export function useSponsoredTransaction() {
         contract: options.address,
         function: options.functionName,
         args: options.args,
+        hasCapabilities: Object.keys(capabilities).length > 0,
         capabilities,
       });
 
       // Check if paymaster is available
       if (Object.keys(capabilities).length === 0) {
-        console.warn('[Paymaster] No paymaster capabilities detected - transaction may require gas');
+        console.error('[Paymaster] ❌ No paymaster capabilities detected!');
+        console.error('[Paymaster] Make sure:');
+        console.error('  1. You are using a Coinbase Smart Wallet');
+        console.error('  2. VITE_PAYMASTER_URL is set in .env');
+        console.error('  3. CDP Paymaster is enabled for this chain');
+        throw new Error('Paymaster not available. Ensure you are using a Coinbase Smart Wallet and VITE_PAYMASTER_URL is configured.');
       }
 
+      console.log('[Paymaster] ✅ Paymaster capabilities detected, submitting transaction...');
+
       // Execute transaction with paymaster capabilities
+      // Build contract call object - only include args if they exist
+      const contractCall: any = {
+        address: options.address,
+        abi: options.abi,
+        functionName: options.functionName,
+      };
+      
+      // Only add args if provided and not empty
+      if (options.args && options.args.length > 0) {
+        contractCall.args = options.args;
+      }
+      
       const result = await writeContractsAsync({
-        contracts: [
-          {
-            address: options.address,
-            abi: options.abi,
-            functionName: options.functionName,
-            args: options.args,
-          },
-        ],
+        contracts: [contractCall],
         capabilities,
       });
 

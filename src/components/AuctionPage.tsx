@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAccount, useWriteContract, useConnect } from 'wagmi';
-import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
+import { useAccount, useConnect } from 'wagmi';
+import { simulateContract } from 'wagmi/actions';
 import { config } from '../lib/wagmi';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
@@ -15,6 +15,7 @@ import BidModal from './BidModal';
 import { getAuctionStatus } from '../utils/auction';
 import { fetchAuctionById, isSubgraphConfigured } from '../lib/subgraph';
 import { AppHeader } from './AppHeader';
+import { useSponsoredTransaction } from '../hooks/useSponsoredTransaction';
 
 interface AuctionPageProps {
   onSelectView: (view: AppView) => void;
@@ -49,7 +50,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   const [displayAuction, setDisplayAuction] = useState<Auction | undefined>();
   const [displayCountdown, setDisplayCountdown] = useState(0);
 
-  const { writeContractAsync } = useWriteContract();
+  const sponsoredTx = useSponsoredTransaction();
 
   // Update viewNounId when current auction changes (only if not viewing a past auction)
   useEffect(() => {
@@ -228,6 +229,17 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
           value: valueWei.toString(),
         });
 
+        // Execute sponsored bid transaction
+        await sponsoredTx.execute({
+          address: CONTRACTS.AUCTION_HOUSE,
+          abi: AUCTION_HOUSE_ABI,
+          functionName: 'createBid',
+          args: [auction.nounId],
+          onSuccess: (txHash) => {
+            console.log('[Auction] Bid confirmed:', txHash);
+            setTxHash(txHash);
+          },
+        });
 
         setActionMessage('Bid confirmed!');
         setBidModalOpen(false);
@@ -242,31 +254,84 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         setTimeout(() => setActionMessage(null), 6000);
       }
     },
-    [auction, isConnected, refetch]
+    [auction, isConnected, refetch, sponsoredTx]
   );
 
   const attemptSettle = useCallback(
     async (fnName: 'settleAuction' | 'settleCurrentAndCreateNewAuction') => {
       if (!auction) return null;
       try {
-        const simulation = await simulateContract(config, {
+        console.log('[Auction] 🔍 Simulating settle transaction first...');
+        console.log('[Auction] Function:', fnName);
+        console.log('[Auction] Contract:', CONTRACTS.AUCTION_HOUSE);
+        console.log('[Auction] Auction state:', {
+          nounId: auction.nounId.toString(),
+          settled: auction.settled,
+          endTime: new Date(Number(auction.endTime) * 1000).toISOString(),
+          now: new Date().toISOString(),
+        });
+        
+        // First, simulate the transaction to see if it would succeed
+        try {
+          const simulation = await simulateContract(config, {
+            address: CONTRACTS.AUCTION_HOUSE,
+            abi: AUCTION_HOUSE_ABI,
+            functionName: fnName,
+            account: address,
+          });
+          
+          console.log('[Auction] ✅ Simulation successful!', simulation);
+        } catch (simError: any) {
+          console.error('[Auction] ❌ Simulation failed:', simError);
+          console.error('[Auction] Error details:', {
+            message: simError.message,
+            cause: simError.cause,
+            shortMessage: simError.shortMessage,
+            data: simError.data,
+          });
+          
+          // Try to extract revert reason
+          if (simError.message) {
+            // Check for UNPAUSED() error signature
+            if (simError.message.includes('0x6d76f93d') || simError.message.includes('UNPAUSED')) {
+              throw new Error('❌ The auction contract is PAUSED. The contract owner needs to unpause it before auctions can be settled. This is a contract-level restriction that cannot be bypassed.');
+            } else if (simError.message.includes('Auction not yet ended')) {
+              throw new Error('Auction has not ended yet. Wait for the auction to end before settling.');
+            } else if (simError.message.includes('Auction already settled')) {
+              throw new Error('This auction has already been settled.');
+            } else if (simError.message.includes('Contract is paused')) {
+              throw new Error('The auction contract is currently paused.');
+            }
+          }
+          
+          throw new Error(`Settlement simulation failed: ${simError.shortMessage || simError.message}`);
+        }
+        
+        console.log('[Auction] Attempting sponsored settle:', {
+          function: fnName,
+          contract: CONTRACTS.AUCTION_HOUSE,
+        });
+        
+        // Use sponsored transaction just like voting does
+        const { hash } = await sponsoredTx.execute({
           address: CONTRACTS.AUCTION_HOUSE,
           abi: AUCTION_HOUSE_ABI,
           functionName: fnName,
-          args: [],
-          account: address!,
+          onSuccess: (txHash) => {
+            console.log('[Auction] ✅ Settle confirmed:', txHash);
+            setTxHash(txHash);
+          },
         });
-        const hash = await writeContractAsync(simulation.request);
-        setTxHash(hash);
-        const receipt = await waitForTransactionReceipt(config, { hash });
-        return receipt.status;
+        
+        console.log('[Auction] Settle transaction hash:', hash);
+        
+        return 'success';
       } catch (error: any) {
-        // If simulation fails, the function likely can't be called
-        // This helps us determine which settle function to use
+        console.error(`[Auction] ❌ ${fnName} failed:`, error);
         throw error;
       }
     },
-    [auction, address, writeContractAsync]
+    [auction, sponsoredTx, address]
   );
 
   const handleSettle = useCallback(async () => {
@@ -291,15 +356,23 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     try {
       setIsSettling(true);
       setActionError(null);
-      setActionMessage('Submitting settle transaction...');
+      setActionMessage('Submitting settle transaction (gasless)...');
       
-      // Try settleAuction first (for ended auctions)
+      console.log('[Auction] Starting settlement process:', {
+        nounId: auction.nounId.toString(),
+        settled: auction.settled,
+        hasPaymaster: sponsoredTx.hasPaymasterSupport,
+      });
+      
+      // Try settleCurrentAndCreateNewAuction first (for normal operation)
+      // settleAuction is only used when contract is paused
       const attempts: ('settleAuction' | 'settleCurrentAndCreateNewAuction')[] = [
-        'settleAuction',
         'settleCurrentAndCreateNewAuction',
+        'settleAuction',
       ];
       let success = false;
       let lastError: unknown = null;
+      
       for (const fn of attempts) {
         try {
           const status = await attemptSettle(fn);
@@ -309,10 +382,12 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
           }
         } catch (error: any) {
           lastError = error;
+          console.log(`[Auction] ${fn} attempt failed, trying next...`);
         }
       }
+      
       if (success) {
-        setActionMessage('Auction settled!');
+        setActionMessage('Auction settled successfully!');
         // Store the settled auction's nounId before refetch
         const settledNounId = Number(auction.nounId);
         
@@ -329,7 +404,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       } else {
         const errorMsg = lastError instanceof Error 
           ? lastError.message 
-          : 'Failed to settle auction. The auction may not be ready to settle yet.';
+          : 'Failed to settle auction. Please check:\n1. Auction House contract is allowlisted in CDP\n2. settleAuction() and settleCurrentAndCreateNewAuction() functions are allowlisted\n3. You have a Coinbase Smart Wallet connected';
         throw new Error(errorMsg);
       }
     } catch (error) {
@@ -337,11 +412,12 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         error instanceof Error ? error.message : 'Failed to settle auction';
       setActionMessage(null);
       setActionError(message);
+      console.error('[Auction] Settlement failed:', error);
     } finally {
       setIsSettling(false);
       setTimeout(() => setActionMessage(null), 6000);
     }
-  }, [auction, attemptSettle, isConnected, refetch]);
+  }, [auction, attemptSettle, isConnected, refetch, sponsoredTx.hasPaymasterSupport]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
