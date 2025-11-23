@@ -104,14 +104,14 @@ const getSubgraphEndpoint = () =>
   import.meta.env.VITE_PROPOSALS_SUBGRAPH_URL ||
   DEFAULT_YAYNAY_SUBGRAPH_URL;
 
-async function gql<T>(variables: Record<string, unknown>): Promise<T> {
+async function gql<T>(variables: Record<string, unknown>, query: string = PROPOSALS_QUERY): Promise<T> {
   const endpoint = getSubgraphEndpoint();
 
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      query: PROPOSALS_QUERY,
+      query,
       variables,
     }),
     cache: 'no-store',
@@ -128,6 +128,38 @@ async function gql<T>(variables: Record<string, unknown>): Promise<T> {
   }
 
   return json.data as T;
+}
+
+
+/**
+ * Fetch the timestamp of the most recently created proposal
+ */
+export async function fetchLatestProposalTimestamp(): Promise<number | null> {
+  const where = {
+    dao_: {
+      governorAddress: CONTRACTS.GOVERNOR.toLowerCase(),
+    },
+  };
+
+  try {
+    // Reuse the standard PROPOSALS_QUERY to ensure compatibility
+    const data = await gql<{ proposals: SubgraphProposal[] }>({ 
+      where,
+      first: 1,
+      orderBy: 'timeCreated',
+      orderDirection: 'desc'
+    });
+
+    if (data.proposals && data.proposals.length > 0) {
+      const p = data.proposals[0];
+      // Return voteStart if available, otherwise timeCreated
+      return Number(p.voteStart || p.timeCreated);
+    }
+    return null;
+  } catch (error) {
+    console.warn('Failed to fetch latest proposal timestamp:', error);
+    return null;
+  }
 }
 
 export async function fetchActiveProposalsFromSubgraph(

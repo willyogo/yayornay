@@ -9,6 +9,7 @@ import { useVotedProposals } from '../contexts/VotedProposalsContext';
 
 interface SwipeStackProps {
   proposals: Proposal[];
+  latestProposalTime?: number | null;
   onVote: (proposalId: string, voteType: VoteType) => Promise<void>;
   onBeforeVote?: () => boolean | Promise<boolean>;
   onSubmitCreator: () => void;
@@ -17,7 +18,7 @@ interface SwipeStackProps {
 
 const NEXT_PROPOSAL_DELAY_MS = 12 * 60 * 1000; // 12 minutes
 
-export function SwipeStack({ proposals, onVote, onBeforeVote, testMode, onSubmitCreator }: SwipeStackProps) {
+export function SwipeStack({ proposals, latestProposalTime, onVote, onBeforeVote, testMode, onSubmitCreator }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -332,7 +333,10 @@ export function SwipeStack({ proposals, onVote, onBeforeVote, testMode, onSubmit
     setCurrentIndex((prev) => Math.min(prev, availableProposals.length - 1));
   }, [availableProposals.length]);
 
-  const latestProposalStart = useMemo(() => {
+  const calculatedLatestProposalStart = useMemo(() => {
+    // Prioritize the explicitly passed latest proposal time from the subgraph
+    if (latestProposalTime) return latestProposalTime;
+
     if (!proposals.length) return null;
 
     const timestamps = proposals
@@ -344,14 +348,14 @@ export function SwipeStack({ proposals, onVote, onBeforeVote, testMode, onSubmit
 
     if (!timestamps.length) return null;
     return Math.max(...timestamps);
-  }, [proposals]);
+  }, [proposals, latestProposalTime]);
 
   const nextProposalTimestamp = useMemo(() => {
-    if (!latestProposalStart) {
+    if (!calculatedLatestProposalStart) {
       return Date.now() + NEXT_PROPOSAL_DELAY_MS;
     }
-    return latestProposalStart + NEXT_PROPOSAL_DELAY_MS;
-  }, [latestProposalStart]);
+    return calculatedLatestProposalStart + NEXT_PROPOSAL_DELAY_MS;
+  }, [calculatedLatestProposalStart]);
 
   useEffect(() => {
     const updateCountdown = () => {

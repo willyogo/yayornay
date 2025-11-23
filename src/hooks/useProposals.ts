@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Proposal } from '../lib/supabase';
 import { DAO_ADDRESS } from '../config/constants';
-import { fetchActiveProposalsFromSubgraph, fetchPendingProposalsFromSubgraph, fetchUnvotedProposalsForUser, SubgraphProposal } from '../lib/yaynaySubgraph';
+import { fetchActiveProposalsFromSubgraph, fetchPendingProposalsFromSubgraph, fetchUnvotedProposalsForUser, fetchLatestProposalTimestamp, SubgraphProposal } from '../lib/yaynaySubgraph';
 
 const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['']s creator coin/i;
 const TITLE_CREATOR_REGEX = /purchase\s+([a-zA-Z0-9._-]+)['']s creator coin/i;
@@ -56,9 +56,9 @@ const mockProposals: Proposal[] = testCreators.map((creator, index) => ({
   description: descriptions[index],
   cover_image_url: `https://images.pexels.com/photos/${[1194420, 1763075, 159581, 2102587, 3184291, 3184338, 3184339, 3184360, 3184418, 3184465, 3184611, 3184613, 3184614, 3184634][index]}/pexels-photo.jpeg?auto=compress&cs=tinysrgb&w=800`,
   status: 'active',
-  vote_start: new Date(Date.now() - index * 86400000).toISOString(),
-  created_at: new Date(Date.now() - index * 86400000).toISOString(),
-  updated_at: new Date(Date.now() - index * 86400000).toISOString()
+  vote_start: new Date(Date.now() - 2 * 60 * 1000 - index * 86400000).toISOString(), // 2 minutes ago for the first one
+  created_at: new Date(Date.now() - 2 * 60 * 1000 - index * 86400000).toISOString(),
+  updated_at: new Date(Date.now() - 2 * 60 * 1000 - index * 86400000).toISOString()
 }));
 
 const toIsoFromSeconds = (value?: string | number | null) => {
@@ -168,6 +168,7 @@ const normalizeSubgraphProposal = (proposal: SubgraphProposal, isPending: boolea
 
 export function useProposals(testMode: boolean = false, userAddress?: string) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [latestProposalTime, setLatestProposalTime] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
@@ -183,6 +184,15 @@ export function useProposals(testMode: boolean = false, userAddress?: string) {
         // Fetch both active and pending proposals
         let activeProposals: SubgraphProposal[];
         let pendingProposals: SubgraphProposal[] = [];
+        let latestTime: number | null = null;
+
+        // Fetch latest proposal timestamp regardless of user address
+        try {
+          latestTime = await fetchLatestProposalTimestamp();
+          console.log('Fetched latest proposal time:', latestTime);
+        } catch (e) {
+          console.warn('Failed to fetch latest proposal timestamp:', e);
+        }
 
         if (userAddress) {
           // Fetch only proposals the user hasn't voted on
@@ -201,6 +211,10 @@ export function useProposals(testMode: boolean = false, userAddress?: string) {
         }
 
         if (isActive) {
+          if (latestTime) {
+            setLatestProposalTime(latestTime * 1000); // Convert to ms
+          }
+
           const totalProposals = activeProposals.length + pendingProposals.length;
 
           if (totalProposals > 0) {
@@ -252,5 +266,5 @@ export function useProposals(testMode: boolean = false, userAddress?: string) {
     setRefetchTrigger((prev) => prev + 1);
   };
 
-  return { proposals, loading, error, refetch };
+  return { proposals, latestProposalTime, loading, error, refetch };
 }

@@ -38,7 +38,7 @@ function AppContent() {
   const [showVoteModal, setShowVoteModal] = useState(false);
   const { hasNoun } = useNounBalance();
   // Pass user address to only fetch proposals they haven't voted on
-  const { proposals, loading } = useProposals(testMode, address);
+  const { proposals, latestProposalTime, loading } = useProposals(testMode, address);
   const { submitVote } = useVoting();
   const { addVotedProposal } = useVotedProposals();
 
@@ -182,6 +182,7 @@ function AppContent() {
 
         <SwipeStack
           proposals={proposals}
+          latestProposalTime={latestProposalTime}
           onVote={handleVote}
           onBeforeVote={handleBeforeVote}
           onSubmitCreator={() => setView('submit')}
