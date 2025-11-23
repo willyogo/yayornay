@@ -50,9 +50,6 @@ function AppContent() {
   // Store pending vote to execute after delegation
   const [pendingVote, setPendingVote] = useState<{ proposalId: string; voteType: 'for' | 'against' | 'abstain' } | null>(null);
 
-  // Store pending vote to execute after delegation
-  const [pendingVote, setPendingVote] = useState<{ proposalId: string; voteType: 'for' | 'against' | 'abstain' } | null>(null);
-
   // Wrap submitVote to track votes immediately in context and handle delegation logic
   const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
     console.log('[App] handleVote called:', { proposalId, voteType, hasVotingPower, isDelegatedToServerWallet });
