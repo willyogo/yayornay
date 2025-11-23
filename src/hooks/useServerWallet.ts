@@ -118,7 +118,7 @@ export function useServerWallet() {
             statusCode: (createError as any)?.status,
             errorDetails: createError || newWallet,
             functionName: 'create-wallet',
-            requestBody,
+            requestBody: { userAddress: address },
             timestamp: new Date().toISOString(),
           };
           console.error('[useServerWallet] Error creating wallet:', errorInfo);

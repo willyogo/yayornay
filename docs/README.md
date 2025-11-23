@@ -36,6 +36,7 @@ Documentation for external APIs and integrations.
 - **[Subgraph](./api/subgraph.md)** - Builder DAO subgraph integration
 - **[Zora](./api/zora.md)** - Zora API integration
 - **[Wagmi](./api/wagmi.md)** - Blockchain integration (Wagmi/Viem)
+- **[Delegation](./api/delegation.md)** - Vote delegation using Builder DAO SDK
 
 ### [Database](./database/)
 Database schema and migration documentation.
