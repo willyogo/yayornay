@@ -104,26 +104,28 @@ serve(async (req) => {
       detected: getCdpNetwork(),
     })
     
-    // Convert amount to wei if currency is ETH (amount should be in wei already, but ensure it's a string)
-    // For other currencies, amount should be in the smallest unit
-    const amountValue = typeof amount === 'string' ? amount : amount.toString()
+    // Convert amount - CDP SDK accepts number, string, or bigint
+    // For contract calls with value=0, we can pass 0 directly
+    const amountValue = amount === "0" || amount === 0 ? 0 : 
+                       (typeof amount === 'string' ? amount : amount.toString())
     
-    // Build transaction object with proper EIP-1559 format
-    // CDP SDK expects "input" field for calldata, not "data"
+    // Build transaction object for CDP SDK
+    // CDP SDK uses standard Ethereum transaction format
     const transaction: any = {
       to,
       value: amountValue,
     }
     
-    // Add input field if data provided (for contract calls)
+    // Add data field for contract calls (standard Ethereum field)
     if (data) {
-      transaction.input = data
+      transaction.data = data
     }
 
     console.log('[send-transaction] Sending transaction:', {
       address: walletRecord.server_wallet_address,
       network: networkId,
       transaction,
+      valueType: typeof amountValue,
     })
 
     // Send transaction using CdpClient

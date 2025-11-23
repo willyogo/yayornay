@@ -71,7 +71,7 @@ export const CONTRACTS = {
   GOVERNOR: '0x2ff7852a23e408cb6b7ba5c89384672eb88dab2e',
   TREASURY: '0x72b052a9a830001ce202ad907e6eedd0b86c4a88',
   METADATA: '0x47887fc1e456531765ecad1ae20b762f59ae6cf9',
-} as const;
+} as const;    
 
 // DAO address (token contract) used for subgraph filtering
 export const DAO_ADDRESS = CONTRACTS.NFT;
