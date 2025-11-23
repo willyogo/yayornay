@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Copy, Check, Send, Wallet, ExternalLink } from 'lucide-react';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId } from 'wagmi';
 import { useServerWallet } from '../hooks/useServerWallet';
 import { parseEther } from 'viem';
 import { supabase } from '../lib/supabase';
+import { CHAIN_CONFIG } from '../config/constants';
 
 export function ServerWalletDisplay() {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const { serverWalletAddress, loading, error: walletError } = useServerWallet();
   const [copied, setCopied] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -101,7 +103,10 @@ export function ServerWalletDisplay() {
   };
 
   const getExplorerUrl = (hash: string) => {
-    return `https://sepolia.basescan.org/tx/${hash}`;
+    // Use mainnet explorer for Base Mainnet (8453), sepolia explorer for Base Sepolia (84532)
+    const isMainnet = chainId === CHAIN_CONFIG.ID;
+    const explorerBase = isMainnet ? 'https://basescan.org' : 'https://sepolia.basescan.org';
+    return `${explorerBase}/tx/${hash}`;
   };
 
   if (!isConnected || !address) {

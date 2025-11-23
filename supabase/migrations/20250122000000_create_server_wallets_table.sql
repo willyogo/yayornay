@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS server_wallets (
   server_wallet_id text NOT NULL UNIQUE, -- CDP wallet ID
   server_wallet_address text NOT NULL, -- The server wallet's address
   wallet_data jsonb NOT NULL DEFAULT '{}', -- Empty object - CDP manages accounts server-side
-  network_id text DEFAULT 'base-sepolia',
+  network_id text DEFAULT 'base', -- Defaults to Base Mainnet (can be overridden by CDP_NETWORK_ID env var)
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );

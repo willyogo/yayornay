@@ -37,8 +37,8 @@ VITE_CDP_API_KEY=your-cdp-api-key-id
 VITE_CDP_API_SECRET=your-cdp-api-key-secret
 CDP_WALLET_SECRET=your-cdp-wallet-secret
 
-# CDP Network
-CDP_NETWORK_ID=base-sepolia
+# CDP Network (optional - auto-detected: Sepolia for local dev, Mainnet for production)
+# CDP_NETWORK_ID=base-sepolia  # Uncomment to override auto-detection
 EOF
     echo -e "${YELLOW}Please fill in your environment variables in .env.local${NC}"
     exit 1
