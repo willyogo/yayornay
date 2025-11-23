@@ -6,10 +6,12 @@ import { AuctionPage } from './components/AuctionPage';
 import { SwipeStack } from './components/SwipeStack';
 import { useProposals } from './hooks/useProposals';
 import { useVoting } from './hooks/useVoting';
+import { useNounBalance } from './hooks/useNounBalance';
 import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
 import { DirectProposalPage } from './components/DirectProposalPage';
 import { ServerWalletDisplay } from './components/ServerWalletDisplay';
+import { NoVotesModal } from './components/NoVotesModal';
 import { AppView } from './types/view';
 import { VotedProposalsProvider, useVotedProposals } from './contexts/VotedProposalsContext';
 
@@ -33,6 +35,8 @@ function AppContent() {
   const { isConnected, address } = useAccount();
   const [testMode] = useState(() => getTestModeFromURL());
   const [view, setView] = useState<AppView>('landing');
+  const [showVoteModal, setShowVoteModal] = useState(false);
+  const { hasNoun } = useNounBalance();
   // Pass user address to only fetch proposals they haven't voted on
   const { proposals, loading } = useProposals(testMode, address);
   const { submitVote } = useVoting();
@@ -45,6 +49,15 @@ function AppContent() {
 
     // Submit vote in background (no need to refetch immediately)
     await submitVote(proposalId, voteType);
+  };
+
+  const handleBeforeVote = () => {
+     // Check if user has voting power (unless in test mode)
+    if (!hasNoun && !testMode) {
+      setShowVoteModal(true);
+      return false;
+    }
+    return true;
   };
   
   // Track the view before connecting to return to it after login
@@ -170,8 +183,18 @@ function AppContent() {
         <SwipeStack
           proposals={proposals}
           onVote={handleVote}
+          onBeforeVote={handleBeforeVote}
           onSubmitCreator={() => setView('submit')}
           testMode={testMode}
+        />
+        
+        <NoVotesModal 
+          isOpen={showVoteModal} 
+          onClose={() => setShowVoteModal(false)}
+          onJoin={() => {
+            setShowVoteModal(false);
+            setView('auction');
+          }}
         />
       </div>
     </TestModeContext.Provider>

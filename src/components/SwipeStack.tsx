@@ -10,13 +10,14 @@ import { useVotedProposals } from '../contexts/VotedProposalsContext';
 interface SwipeStackProps {
   proposals: Proposal[];
   onVote: (proposalId: string, voteType: VoteType) => Promise<void>;
+  onBeforeVote?: () => boolean | Promise<boolean>;
   onSubmitCreator: () => void;
   testMode?: boolean;
 }
 
 const NEXT_PROPOSAL_DELAY_MS = 12 * 60 * 1000; // 12 minutes
 
-export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: SwipeStackProps) {
+export function SwipeStack({ proposals, onVote, onBeforeVote, testMode, onSubmitCreator }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -138,6 +139,14 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
   const handleVote = async (voteType: VoteType) => {
     if (!currentProposal || animationLock.current) return;
+
+    if (onBeforeVote) {
+      const canProceed = await onBeforeVote();
+      if (!canProceed) {
+        resetCardPosition();
+        return;
+      }
+    }
 
     // Don't allow voting on pending proposals
     if (currentProposal.status === 'pending') return;
