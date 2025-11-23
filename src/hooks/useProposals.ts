@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Proposal } from '../lib/supabase';
-import { DAO_ADDRESS } from '../config/constants';
+import { AI_AGENT_ADDRESS, DAO_ADDRESS } from '../config/constants';
 import { fetchActiveProposalsFromSubgraph, fetchPendingProposalsFromSubgraph, fetchUnvotedProposalsForUser, SubgraphProposal } from '../lib/yaynaySubgraph';
 
 const PURCHASE_TITLE_REGEX = /purchase\s+[a-zA-Z0-9._-]+['']s creator coin/i;
@@ -11,6 +11,7 @@ const COIN_SYMBOL_REGEX = /symbol:\s*([a-zA-Z0-9._-]+)/i;
 const ETH_AMOUNT_REGEX = /eth amount:\s*([0-9]*\.?[0-9]+\s*(?:eth)?)/i;
 const SUMMARY_PURCHASE_REGEX = /purchase\s+([0-9]*\.?[0-9]+)\s*eth[^a-zA-Z0-9]+(?:worth\s+of\s+)?([a-zA-Z0-9._-]+)/i;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const AGENT_PROPOSER_ADDRESS = AI_AGENT_ADDRESS.toLowerCase();
 
 const testCreators = [
   '@bloodpiano',
@@ -56,6 +57,7 @@ const mockProposals: Proposal[] = testCreators.map((creator, index) => ({
   description: descriptions[index],
   cover_image_url: `https://images.pexels.com/photos/${[1194420, 1763075, 159581, 2102587, 3184291, 3184338, 3184339, 3184360, 3184418, 3184465, 3184611, 3184613, 3184614, 3184634][index]}/pexels-photo.jpeg?auto=compress&cs=tinysrgb&w=800`,
   status: 'active',
+  proposer_address: AGENT_PROPOSER_ADDRESS,
   vote_start: new Date(Date.now() - index * 86400000).toISOString(),
   created_at: new Date(Date.now() - index * 86400000).toISOString(),
   updated_at: new Date(Date.now() - index * 86400000).toISOString()
@@ -160,6 +162,7 @@ const normalizeSubgraphProposal = (proposal: SubgraphProposal, isPending: boolea
     description: proposal.description || null,
     cover_image_url: null,
     status: isPending ? 'pending' : 'active',
+    proposer_address: (proposal.proposer || ZERO_ADDRESS).toLowerCase(),
     vote_start: toIsoFromSeconds(proposal.voteStart),
     created_at: toIsoFromSeconds(proposal.timeCreated),
     updated_at: toIsoFromSeconds(proposal.voteEnd || proposal.expiresAt || proposal.timeCreated),
@@ -208,8 +211,15 @@ export function useProposals(testMode: boolean = false, userAddress?: string) {
             const normalizedActive = activeProposals.map(p => normalizeSubgraphProposal(p, false));
             const normalizedPending = pendingProposals.map(p => normalizeSubgraphProposal(p, true));
 
+            const filteredActive = normalizedActive.filter(
+              (proposal) => proposal.proposer_address.toLowerCase() === AGENT_PROPOSER_ADDRESS
+            );
+            const filteredPending = normalizedPending.filter(
+              (proposal) => proposal.proposer_address.toLowerCase() === AGENT_PROPOSER_ADDRESS
+            );
+
             // Sort by vote_start time (soonest first for pending, then active)
-            const allProposals = [...normalizedPending, ...normalizedActive].sort((a, b) => {
+            const allProposals = [...filteredPending, ...filteredActive].sort((a, b) => {
               const timeA = new Date(a.vote_start || a.created_at).getTime();
               const timeB = new Date(b.vote_start || b.created_at).getTime();
               return timeA - timeB;

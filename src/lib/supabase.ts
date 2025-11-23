@@ -19,6 +19,7 @@ export type Proposal = {
   description: string | null;
   cover_image_url: string | null;
   status: string;
+  proposer_address: string;
   vote_start?: string;
   created_at: string;
   updated_at: string;
