@@ -47,6 +47,8 @@ function AppContent() {
   // Modal state
   const [showNoVotesModal, setShowNoVotesModal] = useState(false);
   const [showDelegationModal, setShowDelegationModal] = useState(false);
+  // Store pending vote to execute after delegation
+  const [pendingVote, setPendingVote] = useState<{ proposalId: string; voteType: 'for' | 'against' | 'abstain' } | null>(null);
 
   // Wrap submitVote to track votes immediately in context and handle delegation logic
   const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
@@ -57,7 +59,7 @@ function AppContent() {
       // Show modal directing them to auction
       console.log('[App] User has no voting power - showing NoVotesModal');
       setShowNoVotesModal(true);
-      return;
+      throw new Error('No voting power'); // Throw to prevent SwipeStack from advancing
     }
 
     // Check if user has delegated to server wallet
@@ -79,12 +81,34 @@ function AppContent() {
     } else {
       // User has voting power but hasn't delegated - show delegation modal
       console.log('[App] User has voting power but NOT delegated - showing DelegationModal');
+      
+      // Store the pending vote to execute after delegation
+      setPendingVote({ proposalId, voteType });
       setShowDelegationModal(true);
       
-      // Store the pending vote to execute after delegation (if they choose to delegate)
-      // For now, we'll just let them vote manually if they decline delegation
-      // They can try voting again after seeing the modal
-      return;
+      throw new Error('Delegation required'); // Throw to prevent SwipeStack from advancing
+    }
+  };
+
+  // Execute pending vote after successful delegation
+  const handleDelegationSuccess = async () => {
+    console.log('[App] Delegation successful, executing pending vote:', pendingVote);
+    setShowDelegationModal(false);
+    
+    if (pendingVote) {
+      const { proposalId, voteType } = pendingVote;
+      setPendingVote(null);
+      
+      // Now vote via server wallet
+      console.log('[App] Voting via server wallet after delegation');
+      addVotedProposal(proposalId, voteType);
+      
+      try {
+        await submitVoteViaServerWallet(proposalId, voteType);
+        console.log('[App] Server wallet vote successful after delegation');
+      } catch (error) {
+        console.error('[App] Server wallet vote failed after delegation:', error);
+      }
     }
   };
   
@@ -227,11 +251,11 @@ function AppContent() {
         
         <DelegationModal
           isOpen={showDelegationModal}
-          onClose={() => setShowDelegationModal(false)}
-          onDelegateSuccess={() => {
-            // After delegation, user can vote again and it will use server wallet
+          onClose={() => {
             setShowDelegationModal(false);
+            setPendingVote(null); // Clear pending vote if user closes modal
           }}
+          onDelegateSuccess={handleDelegationSuccess}
         />
       </div>
     </TestModeContext.Provider>
