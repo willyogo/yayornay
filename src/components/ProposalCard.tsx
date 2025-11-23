@@ -6,6 +6,7 @@ import { formatCurrency, calculate24hChange } from '../lib/zora';
 import { EnsName } from './EnsName';
 import { CountdownTimer } from './CountdownTimer';
 import { StatsGrid } from './StatsGrid';
+import { CardSkeleton } from './CardSkeleton';
 
 interface ProposalCardProps {
   proposal: Proposal;
@@ -24,6 +25,7 @@ export function ProposalCard({ proposal, onFlipStateChange }: ProposalCardProps)
   const {
     coinData,
     loading,
+    error,
     contentCoins,
     hasMoreContentCoins,
     loadMoreContentCoins,
@@ -280,13 +282,9 @@ export function ProposalCard({ proposal, onFlipStateChange }: ProposalCardProps)
                   </div>
                 );})}
               </div>
-
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-100/70 z-30">
-                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
             </div>
+
+            {(loading || (!coinData && !error)) && <CardSkeleton />}
           </div>
 
           <div
