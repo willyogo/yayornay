@@ -331,26 +331,26 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
     setCurrentIndex((prev) => Math.min(prev, availableProposals.length - 1));
   }, [availableProposals.length]);
 
-  const latestProposalStart = useMemo(() => {
-    if (!proposals.length) return null;
-
-    const timestamps = proposals
-      .map((proposal) => {
-        const date = new Date(proposal.vote_start || proposal.created_at || proposal.updated_at);
-        return date.getTime();
-      })
-      .filter((value) => Number.isFinite(value)) as number[];
-
-    if (!timestamps.length) return null;
-    return Math.max(...timestamps);
-  }, [proposals]);
-
+  // Calculate next proposal time based on a fixed 12-minute schedule
+  // Proposals are submitted at :00, :12, :24, :36, :48 of each hour
   const nextProposalTimestamp = useMemo(() => {
-    if (!latestProposalStart) {
-      return Date.now() + NEXT_PROPOSAL_DELAY_MS;
-    }
-    return latestProposalStart + NEXT_PROPOSAL_DELAY_MS;
-  }, [latestProposalStart]);
+    const now = Date.now();
+    const currentDate = new Date(now);
+    const currentMinute = currentDate.getMinutes();
+    const currentSecond = currentDate.getSeconds();
+    const currentMs = currentDate.getMilliseconds();
+    
+    // Calculate minutes into current 12-minute cycle
+    const cycleMinute = currentMinute % 12;
+    
+    // Calculate ms until next cycle boundary
+    const msUntilNext = 
+      (12 - cycleMinute - 1) * 60 * 1000 + // remaining full minutes
+      (60 - currentSecond) * 1000 + // remaining seconds
+      (1000 - currentMs); // remaining milliseconds
+    
+    return now + msUntilNext;
+  }, []);
 
   useEffect(() => {
     const updateCountdown = () => {
