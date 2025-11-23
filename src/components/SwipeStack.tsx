@@ -33,7 +33,6 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   const activeInputType = useRef<'mouse' | 'touch' | null>(null);
   const animationLock = useRef(false);
   const [timeUntilNext, setTimeUntilNext] = useState(NEXT_PROPOSAL_DELAY_MS);
-  const { address } = useAccount();
   const { votedProposals } = useVotedProposals();
   const audioContextRef = useRef<AudioContext | null>(null);
 

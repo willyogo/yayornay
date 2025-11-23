@@ -10,6 +10,8 @@ import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
 import { DirectProposalPage } from './components/DirectProposalPage';
 import { ServerWalletDisplay } from './components/ServerWalletDisplay';
+import { NoVotesModal } from './components/NoVotesModal';
+import { DelegationModal } from './components/DelegationModal';
 import { AppView } from './types/view';
 import { VotedProposalsProvider, useVotedProposals } from './contexts/VotedProposalsContext';
 
@@ -35,16 +37,46 @@ function AppContent() {
   const [view, setView] = useState<AppView>('landing');
   // Pass user address to only fetch proposals they haven't voted on
   const { proposals, loading } = useProposals(testMode, address);
-  const { submitVote } = useVoting();
+  const { 
+    submitVoteViaServerWallet, 
+    isDelegatedToServerWallet, 
+    hasVotingPower 
+  } = useVoting();
   const { addVotedProposal } = useVotedProposals();
 
-  // Wrap submitVote to track votes immediately in context
-  const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
-    // Add to voted proposals context immediately (optimistic update)
-    addVotedProposal(proposalId, voteType);
+  // Modal state
+  const [showNoVotesModal, setShowNoVotesModal] = useState(false);
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
 
-    // Submit vote in background (no need to refetch immediately)
-    await submitVote(proposalId, voteType);
+  // Wrap submitVote to track votes immediately in context and handle delegation logic
+  const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
+    // Check if user has voting power
+    if (!hasVotingPower) {
+      // Show modal directing them to auction
+      setShowNoVotesModal(true);
+      return;
+    }
+
+    // Check if user has delegated to server wallet
+    if (isDelegatedToServerWallet) {
+      // Vote via server wallet (invisible voting)
+      console.log('[App] Voting via server wallet (delegated)');
+      
+      // Add to voted proposals context immediately (optimistic update)
+      addVotedProposal(proposalId, voteType);
+      
+      // Submit vote via server wallet
+      await submitVoteViaServerWallet(proposalId, voteType);
+    } else {
+      // User has voting power but hasn't delegated - show delegation modal
+      console.log('[App] User has voting power but not delegated - showing delegation modal');
+      setShowDelegationModal(true);
+      
+      // Store the pending vote to execute after delegation (if they choose to delegate)
+      // For now, we'll just let them vote manually if they decline delegation
+      // They can try voting again after seeing the modal
+      return;
+    }
   };
   
   // Track the view before connecting to return to it after login
@@ -172,6 +204,25 @@ function AppContent() {
           onVote={handleVote}
           onSubmitCreator={() => setView('submit')}
           testMode={testMode}
+        />
+
+        {/* Modals */}
+        <NoVotesModal
+          isOpen={showNoVotesModal}
+          onClose={() => setShowNoVotesModal(false)}
+          onGoToAuction={() => {
+            setShowNoVotesModal(false);
+            setView('auction');
+          }}
+        />
+        
+        <DelegationModal
+          isOpen={showDelegationModal}
+          onClose={() => setShowDelegationModal(false)}
+          onDelegateSuccess={() => {
+            // After delegation, user can vote again and it will use server wallet
+            setShowDelegationModal(false);
+          }}
         />
       </div>
     </TestModeContext.Provider>
