@@ -5,6 +5,7 @@ import { useZoraCoin } from '../hooks/useZoraCoin';
 import { formatCurrency, calculate24hChange } from '../lib/zora';
 import { EnsName } from './EnsName';
 import { CountdownTimer } from './CountdownTimer';
+import { StatsGrid } from './StatsGrid';
 
 interface ProposalCardProps {
   proposal: Proposal;
@@ -161,19 +162,66 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
 
   return (
     <div
-      className="absolute inset-0 cursor-grab active:cursor-grabbing"
+      className="relative w-full cursor-grab active:cursor-grabbing"
       style={{ opacity: 1, filter: 'none' }}
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
     >
-      <div className="relative w-full h-full [perspective:2000px]">
+      <div className="relative w-full [perspective:2000px]">
         <div
-          className="relative w-full h-full transition-transform duration-700 ease-[cubic-bezier(.22,.61,.36,1)] [transform-style:preserve-3d]"
+          className="relative w-full transition-transform duration-700 ease-[cubic-bezier(.22,.61,.36,1)] [transform-style:preserve-3d]"
           style={{ transform: `rotateY(${rotation}deg)` }}
         >
-          <div className="absolute inset-0 bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden] min-h-[520px]">
+          <div className="relative w-full bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden]">
             <div
-              className="relative flex-[3] min-h-[260px] bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer isolate overflow-hidden"
+              className="flex flex-col"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFlipState('profile');
+              }}
+            >
+              <div className="px-6 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
+                  <img
+                    src={getAvatarUrl(proposal.creator_username || proposal.creator_address)}
+                    alt={proposal.creator_username || 'Creator'}
+                    className="w-full h-full object-cover opacity-100 mix-blend-normal"
+                    style={{ filter: 'none', opacity: 1 }}
+                    draggable={false}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
+                    {displayData.displayName || proposal.creator_username || (
+                      <EnsName address={proposal.creator_address} className="text-2xl font-bold text-gray-900" />
+                    )}
+                  </h2>
+                  {coinData && (
+                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {displayData.holders} holders
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 pt-0 pb-2 flex flex-col justify-between cursor-pointer hover:bg-gray-50 transition-colors">
+                <h3 className="text-base font-semibold text-gray-900 line-clamp-2 mb-2">
+                  {proposal.title}
+                </h3>
+
+                <StatsGrid
+                  marketCap={displayData.marketCap}
+                  holders={displayData.holders}
+                  volume24h={displayData.volume24h}
+                  change24h={displayData.change24h}
+                  variant="compact"
+                />
+              </div>
+            </div>
+
+            <div
+              className="relative bg-white cursor-pointer isolate overflow-hidden"
               onClick={(e) => {
                 e.stopPropagation();
                 setFlipState('feed');
@@ -185,8 +233,21 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                   <span>Pending</span>
                 </div>
               )}
+
+              {proposal.status === 'pending' && (
+                <div className="absolute bottom-7 left-1/2 -translate-x-1/2 z-10 bg-white rounded-2xl shadow-xl px-6 pt-4 pb-6">
+                  <CountdownTimer
+                    targetDate={proposal.vote_start || proposal.created_at}
+                    onComplete={() => {
+                      // Optionally trigger a refetch when voting opens
+                      window.location.reload();
+                    }}
+                  />
+                </div>
+              )}
+
               <div
-                className="h-full w-full p-3 grid grid-cols-2 grid-rows-2 gap-2"
+                className="w-full px-5 pt-2 pb-5 grid grid-cols-2 auto-rows-fr gap-3"
                 aria-hidden="true"
               >
                 {gridCoins.map((coin, idx) => {
@@ -220,114 +281,16 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 );})}
               </div>
 
-              <div
-                className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/15 to-transparent pointer-events-none"
-                aria-hidden="true"
-              />
-
               {loading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100/70 z-30">
                   <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
             </div>
-
-            <div
-              className="flex-1 flex flex-col"
-              onClick={(e) => {
-                e.stopPropagation();
-                setFlipState('profile');
-              }}
-            >
-              <div className="px-6 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors">
-                <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
-                  <img
-                    src={getAvatarUrl(proposal.creator_username || proposal.creator_address)}
-                    alt={proposal.creator_username || 'Creator'}
-                    className="w-full h-full object-cover opacity-100 mix-blend-normal"
-                    style={{ filter: 'none', opacity: 1 }}
-                    draggable={false}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
-                    {displayData.displayName || proposal.creator_username || (
-                      <EnsName address={proposal.creator_address} className="text-2xl font-bold text-gray-900" />
-                    )}
-                  </h2>
-                  {coinData && (
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {displayData.holders} holders
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-[2] p-5 flex flex-col justify-between min-h-[180px] pt-0 cursor-pointer hover:bg-gray-50 transition-colors">
-                <h3 className="text-base font-semibold text-gray-900 line-clamp-2 mb-2">
-                  {proposal.title}
-                </h3>
-
-                {proposal.status === 'pending' ? (
-                  <div className="flex items-center justify-center py-6">
-                    <CountdownTimer
-                      targetDate={proposal.vote_start || proposal.created_at}
-                      onComplete={() => {
-                        // Optionally trigger a refetch when voting opens
-                        window.location.reload();
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-2.5 border border-blue-200/50">
-                      <div className="flex items-center gap-1.5 text-blue-700 text-[10px] mb-0.5 font-medium">
-                        <DollarSign className="w-3 h-3" />
-                        Market Cap
-                      </div>
-                      <div className="text-base font-bold text-gray-900">
-                        {displayData.marketCap}
-                      </div>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-2.5 border border-purple-200/50">
-                      <div className="flex items-center gap-1.5 text-purple-700 text-[10px] mb-0.5 font-medium">
-                        <TrendingUp className="w-3 h-3" />
-                        24h Volume
-                      </div>
-                      <div className="text-base font-bold text-gray-900">
-                        {displayData.volume24h}
-                      </div>
-                    </div>
-
-                    <div className={`rounded-xl p-2.5 col-span-2 border ${
-                      displayData.change24h >= 0
-                        ? 'bg-gradient-to-br from-green-50 to-emerald-100 border-green-200/50'
-                        : 'bg-gradient-to-br from-red-50 to-rose-100 border-red-200/50'
-                    }`}>
-                      <div className={`flex items-center gap-1.5 text-[10px] mb-0.5 font-medium ${
-                        displayData.change24h >= 0 ? 'text-green-700' : 'text-red-700'
-                      }`}>
-                        {displayData.change24h >= 0 ? (
-                          <TrendingUp className="w-3 h-3" />
-                        ) : (
-                          <TrendingDown className="w-3 h-3" />
-                        )}
-                        24h Change
-                      </div>
-                      <div className={`text-base font-bold ${displayData.change24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {displayData.change24h >= 0 ? '+' : ''}{displayData.change24h.toFixed(2)}%
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
 
           <div
-            className="absolute inset-0 bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden] min-h-[520px]"
+            className="absolute inset-0 bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col [backface-visibility:hidden]"
             style={{ transform: 'rotateY(180deg)' }}
           >
             {flipState === 'feed' ? (
@@ -483,47 +446,13 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-3 border border-blue-200/50">
-                          <div className="flex items-center gap-2 text-blue-600 text-xs mb-1">
-                            <DollarSign className="w-4 h-4" />
-                            Market Cap
-                          </div>
-                          <div className="text-xl font-bold text-gray-900">
-                            {formatCurrency(coinData.marketCap)}
-                          </div>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-3 border border-purple-200/50">
-                          <div className="flex items-center gap-2 text-purple-600 text-xs mb-1">
-                            <TrendingUp className="w-4 h-4" />
-                            24h Volume
-                          </div>
-                          <div className="text-xl font-bold text-gray-900">
-                            {formatCurrency(coinData.volume24h)}
-                          </div>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-3 border border-green-200/50">
-                          <div className="flex items-center gap-2 text-green-600 text-xs mb-1">
-                            <Users className="w-4 h-4" />
-                            Holders
-                          </div>
-                          <div className="text-xl font-bold text-gray-900">
-                            {coinData.uniqueHolders.toLocaleString()}
-                          </div>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-3 border border-orange-200/50">
-                          <div className="flex items-center gap-2 text-orange-600 text-xs mb-1">
-                            <DollarSign className="w-4 h-4" />
-                            Total Supply
-                          </div>
-                          <div className="text-xl font-bold text-gray-900">
-                            {formatCurrency(coinData.totalSupply)}
-                          </div>
-                        </div>
-                      </div>
+                      <StatsGrid
+                        marketCap={formatCurrency(coinData.marketCap)}
+                        holders={coinData.uniqueHolders}
+                        volume24h={formatCurrency(coinData.volume24h)}
+                        change24h={calculate24hChange(coinData.marketCap, coinData.marketCapDelta24h)}
+                        variant="full"
+                      />
 
                       {coinData.creatorProfile?.socialAccounts && (
                         <div className="flex gap-2">

@@ -1,21 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAccount, useWriteContract, useConnect } from 'wagmi';
-import { waitForTransactionReceipt, simulateContract } from 'wagmi/actions';
-import { config } from '../lib/wagmi';
+import { useAccount, useConnect } from 'wagmi';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { useAuction } from '../hooks/useAuction';
 import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts';
-import { useSponsoredTransaction } from '../hooks/useSponsoredTransaction';
 import { AppView } from '../types/view';
-import { CHAIN_CONFIG } from '../config/constants';
 import AuctionHero from './AuctionHero';
 import BidModal from './BidModal';
 import { getAuctionStatus } from '../utils/auction';
 import { fetchAuctionById, isSubgraphConfigured } from '../lib/subgraph';
 import { AppHeader } from './AppHeader';
+import { useSponsoredTransaction } from '../hooks/useSponsoredTransaction';
 
 interface AuctionPageProps {
   onSelectView: (view: AppView) => void;
@@ -40,18 +37,16 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     refetch,
   } = useAuction();
 
-  const sponsoredTx = useSponsoredTransaction();
   const [bidModalOpen, setBidModalOpen] = useState(false);
   const [bidSubmitting, setBidSubmitting] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [viewNounId, setViewNounId] = useState<number | null>(null);
   const [displayAuction, setDisplayAuction] = useState<Auction | undefined>();
   const [displayCountdown, setDisplayCountdown] = useState(0);
 
-  const { writeContractAsync } = useWriteContract();
+  const sponsoredTx = useSponsoredTransaction();
 
   // Update viewNounId when current auction changes (only if not viewing a past auction)
   useEffect(() => {
@@ -223,15 +218,14 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       try {
         setBidSubmitting(true);
         setActionError(null);
-        setActionMessage('Submitting sponsored bid...');
-
-        console.log('[Auction] Placing sponsored bid:', {
-          nounId: auction.nounId,
-          value: valueWei.toString(),
-        });
+        setActionMessage(
+          sponsoredTx.hasPaymasterSupport
+            ? 'Submitting gasless bid...'
+            : 'Submitting bid...'
+        );
 
         // Execute sponsored bid transaction
-        const { hash } = await sponsoredTx.execute({
+        await sponsoredTx.execute({
           address: CONTRACTS.AUCTION_HOUSE,
           abi: AUCTION_HOUSE_ABI,
           functionName: 'createBid',
@@ -239,7 +233,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
           value: valueWei,
         });
 
-        setTxHash(hash);
         setActionMessage('Bid confirmed!');
         setBidModalOpen(false);
         await refetch();
@@ -253,31 +246,25 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         setTimeout(() => setActionMessage(null), 6000);
       }
     },
-    [auction, isConnected, sponsoredTx, refetch]
+    [auction, isConnected, refetch, sponsoredTx]
   );
 
   const attemptSettle = useCallback(
     async (fnName: 'settleAuction' | 'settleCurrentAndCreateNewAuction') => {
       if (!auction) return null;
       try {
-        const simulation = await simulateContract(config, {
+        await sponsoredTx.execute({
           address: CONTRACTS.AUCTION_HOUSE,
           abi: AUCTION_HOUSE_ABI,
           functionName: fnName,
-          args: [],
-          account: address!,
         });
-        const hash = await writeContractAsync(simulation.request);
-        setTxHash(hash);
-        const receipt = await waitForTransactionReceipt(config, { hash });
-        return receipt.status;
+        
+        return 'success';
       } catch (error: any) {
-        // If simulation fails, the function likely can't be called
-        // This helps us determine which settle function to use
         throw error;
       }
     },
-    [auction, address, writeContractAsync]
+    [auction, sponsoredTx]
   );
 
   const handleSettle = useCallback(async () => {
@@ -302,15 +289,23 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     try {
       setIsSettling(true);
       setActionError(null);
-      setActionMessage('Submitting settle transaction...');
+      setActionMessage('Submitting settle transaction (gasless)...');
       
-      // Try settleAuction first (for ended auctions)
+      console.log('[Auction] Starting settlement process:', {
+        nounId: auction.nounId.toString(),
+        settled: auction.settled,
+        hasPaymaster: sponsoredTx.hasPaymasterSupport,
+      });
+      
+      // Try settleCurrentAndCreateNewAuction first (for normal operation)
+      // settleAuction is only used when contract is paused
       const attempts: ('settleAuction' | 'settleCurrentAndCreateNewAuction')[] = [
-        'settleAuction',
         'settleCurrentAndCreateNewAuction',
+        'settleAuction',
       ];
       let success = false;
       let lastError: unknown = null;
+      
       for (const fn of attempts) {
         try {
           const status = await attemptSettle(fn);
@@ -320,10 +315,12 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
           }
         } catch (error: any) {
           lastError = error;
+          console.log(`[Auction] ${fn} attempt failed, trying next...`);
         }
       }
+      
       if (success) {
-        setActionMessage('Auction settled!');
+        setActionMessage('Auction settled successfully!');
         // Store the settled auction's nounId before refetch
         const settledNounId = Number(auction.nounId);
         
@@ -340,7 +337,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       } else {
         const errorMsg = lastError instanceof Error 
           ? lastError.message 
-          : 'Failed to settle auction. The auction may not be ready to settle yet.';
+          : 'Failed to settle auction. Please check:\n1. Auction House contract is allowlisted in CDP\n2. settleAuction() and settleCurrentAndCreateNewAuction() functions are allowlisted\n3. You have a Coinbase Smart Wallet connected';
         throw new Error(errorMsg);
       }
     } catch (error) {
@@ -348,11 +345,12 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
         error instanceof Error ? error.message : 'Failed to settle auction';
       setActionMessage(null);
       setActionError(message);
+      console.error('[Auction] Settlement failed:', error);
     } finally {
       setIsSettling(false);
       setTimeout(() => setActionMessage(null), 6000);
     }
-  }, [auction, attemptSettle, isConnected, refetch]);
+  }, [auction, attemptSettle, isConnected, refetch, sponsoredTx.hasPaymasterSupport]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -421,23 +419,10 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
             />
           )}
 
-          {(actionMessage || actionError || txHash) && (
+          {(actionMessage || actionError) && (
             <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm shadow-sm">
               {actionMessage && <p className="font-medium">{actionMessage}</p>}
               {actionError && <p className="text-red-600">{actionError}</p>}
-              {txHash && (
-                <p className="text-xs text-muted-foreground">
-                  Tx hash:{' '}
-                  <a
-                    href={`${CHAIN_CONFIG.BLOCK_EXPLORER_URL}/tx/${txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline"
-                  >
-                    {txHash.slice(0, 10)}...
-                  </a>
-                </p>
-              )}
             </div>
           )}
         </div>

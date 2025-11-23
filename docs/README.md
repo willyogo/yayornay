@@ -12,11 +12,11 @@ Core architectural documentation and design decisions.
 - **[Data Flow](./architecture/data-flow.md)** - How data moves through the application
 - **[State Management](./architecture/state-management.md)** - State management patterns and strategies
 
-### [Guides](./guides/)
-Step-by-step guides for common tasks.
 
-- **[Development Setup](./guides/development.md)** - Local development environment setup
-- **[Contributing](./guides/contributing.md)** - Contribution guidelines and workflow
+### [Integrations](./integrations/)
+Integration setup and implementation guides.
+
+- **[Zora Integration](./integrations/zora.md)** - Zora Coins SDK integration setup
 
 ### [Features](./)
 Feature-specific documentation.
@@ -47,8 +47,7 @@ Visual architecture diagrams and flowcharts.
 New to the codebase? Start here:
 
 1. Read the [Architecture Overview](./architecture/overview.md)
-2. Set up your [Development Environment](./guides/development.md)
-3. Explore the [Component Architecture](./architecture/components.md)
+2. Explore the [Component Architecture](./architecture/components.md)
 
 ## 📝 Document Conventions
 

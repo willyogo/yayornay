@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X, ExternalLink, TrendingUp, Users, DollarSign } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
-import { fetchCoinData, getCreatorCoinAddress, ZoraCoinData, formatCurrency } from '../lib/zora';
+import { fetchCoinData, getCreatorCoinAddress, ZoraCoinData, formatCurrency, calculate24hChange } from '../lib/zora';
+import { StatsGrid } from './StatsGrid';
 
 interface CreatorFeedModalProps {
   proposal: Proposal;
@@ -93,47 +94,13 @@ export function CreatorFeedModal({ proposal, onClose }: CreatorFeedModalProps) {
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4">
-                  <div className="flex items-center gap-2 text-blue-600 text-sm mb-2">
-                    <DollarSign className="w-4 h-4" />
-                    Market Cap
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(coinData.marketCap)}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-4">
-                  <div className="flex items-center gap-2 text-purple-600 text-sm mb-2">
-                    <TrendingUp className="w-4 h-4" />
-                    24h Volume
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(coinData.volume24h)}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4">
-                  <div className="flex items-center gap-2 text-green-600 text-sm mb-2">
-                    <Users className="w-4 h-4" />
-                    Holders
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {coinData.uniqueHolders.toLocaleString()}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-4">
-                  <div className="flex items-center gap-2 text-orange-600 text-sm mb-2">
-                    <DollarSign className="w-4 h-4" />
-                    Total Supply
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(coinData.totalSupply)}
-                  </div>
-                </div>
-              </div>
+              <StatsGrid
+                marketCap={formatCurrency(coinData.marketCap)}
+                holders={coinData.uniqueHolders}
+                volume24h={formatCurrency(coinData.volume24h)}
+                change24h={calculate24hChange(coinData.marketCap, coinData.marketCapDelta24h)}
+                variant="full"
+              />
 
               {/* Creator Profile */}
               {coinData.creatorProfile && (

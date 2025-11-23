@@ -69,12 +69,12 @@ export function CountdownTimer({ targetDate, onComplete }: CountdownTimerProps) 
   const formatNumber = (num: number) => num.toString().padStart(2, '0');
 
   return (
-    <div className="inline-flex flex-col items-center gap-2">
-      <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
+    <div className="flex flex-col items-center gap-2 w-full">
+      <div className="flex items-center justify-center gap-2 text-xs text-gray-600 font-medium">
         <Clock className="w-3.5 h-3.5" />
         <span>Voting opens in:</span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-center gap-2">
         {timeRemaining.days > 0 && (
           <div className="flex flex-col items-center bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg px-3 py-2 border border-blue-200/50 min-w-[60px]">
             <span className="text-2xl font-bold text-gray-900">{formatNumber(timeRemaining.days)}</span>

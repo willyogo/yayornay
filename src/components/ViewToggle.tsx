@@ -14,6 +14,9 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
   // Check if user can create proposals (has at least 1 token)
   const canCreateProposal = hasNoun && balance > 0;
 
+  // Show propose tab only in development environment
+  const showProposeTab = import.meta.env.DEV && canCreateProposal;
+
   return (
     <div className={wrapperClass} role="group" aria-label="Choose app view">
       <button
@@ -42,7 +45,7 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
       >
         Submit
       </button>
-      {canCreateProposal && (
+      {showProposeTab && (
         <>
           <div className="neo-toggle-divider" aria-hidden="true" />
           <button

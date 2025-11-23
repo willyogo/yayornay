@@ -1,0 +1,75 @@
+# Supabase configuration file
+# This file configures Supabase CLI and Edge Functions
+
+[project]
+# Your Supabase project reference ID
+# Get this from: https://supabase.com/dashboard/project/_/settings/general
+
+[api]
+# API configuration
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+# Database configuration
+port = 54322
+major_version = 17
+
+[studio]
+# Supabase Studio configuration
+enabled = true
+port = 54323
+
+[functions]
+# Edge Functions configuration
+# Functions are deployed to: https://<project-ref>.supabase.co/functions/v1/<function-name>
+
+[functions.create-wallet]
+# Configuration for create-wallet function
+verify_jwt = false  # Set to true if you want JWT verification
+
+[functions.get-wallet]
+verify_jwt = false
+
+[functions.send-transaction]
+verify_jwt = false
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+secure_password_change = false
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
+
+[auth.email.template]
+
+[auth.sms]
+
+[storage]
+enabled = false
+
