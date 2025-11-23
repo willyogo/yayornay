@@ -20,9 +20,6 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(),
 }));
 
-// Mock the serverWallet module (will be created)
-// For now, we'll test the expected behavior
-
 describe('Server Wallet Utilities', () => {
   let mockSupabase: any;
 

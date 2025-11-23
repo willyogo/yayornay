@@ -2,22 +2,26 @@
 
 ## Component Hierarchy
 
-The application renders a strict mode wrapper containing WagmiProvider for blockchain context and QueryClientProvider for React Query. Inside these providers, the App component manages view routing with three main views: `landing`, `auction`, and `submit`. The App component conditionally renders:
+The application renders a strict mode wrapper containing WagmiProvider for blockchain context and QueryClientProvider for React Query. Inside these providers, the App component manages view routing with five main views: `landing`, `auction`, `submit`, `propose`, and `wallet`. The App component conditionally renders:
 
 - **LandingPage** (when wallet is not connected) - Contains WalletConnect
 - **AuctionPage** (when view is 'auction') - Displays auction information and bidding interface
 - **SwipeStack** (when view is 'landing' and wallet connected) - Displays ProposalCard components in a stack with action buttons
 - **SubmitPage** (when view is 'submit') - Form for submitting new proposals
+- **DirectProposalPage** (when view is 'propose') - Form for creating direct proposals
+- **ServerWalletDisplay** (when view is 'wallet') - Server wallet management UI
 - **CreatorFeedModal** - Renders conditionally when a proposal is selected
 - **AppHeader** - Navigation header present on all views
 
 ## Component Responsibilities
 
 ### App.tsx
-The root component handles view routing using the `AppView` type ('landing' | 'auction' | 'submit'). It coordinates global state, composes providers, and initializes the Farcaster SDK. It manages three main views:
+The root component handles view routing using the `AppView` type ('landing' | 'auction' | 'submit' | 'propose' | 'wallet'). It coordinates global state, composes providers, and initializes the Farcaster SDK. It manages five main views:
 - **landing**: Shows LandingPage when wallet not connected, or SwipeStack when connected
 - **auction**: Shows AuctionPage for auction viewing and bidding
 - **submit**: Shows SubmitPage for proposal submission
+- **propose**: Shows DirectProposalPage for creating direct proposals (requires Noun balance)
+- **wallet**: Shows ServerWalletDisplay for managing CDP server wallets
 
 It manages test mode through Context (now controlled by URL query parameter), tracks the selected proposal for modal display, and preserves the previous view when connecting wallet to return users to their intended destination.
 
@@ -79,7 +83,7 @@ This modal component handles bid input and submission. It:
 ### AppHeader.tsx
 This component provides navigation between views. It:
 - Displays the current view
-- Provides buttons to switch between landing, auction, and submit views
+- Provides buttons to switch between landing, auction, submit, propose, and wallet views
 - Uses `ViewToggle` component for view switching
 - Maintains consistent header styling across views
 
@@ -87,7 +91,31 @@ This component provides navigation between views. It:
 This component provides a form for submitting new proposals. It handles proposal creation workflow (implementation details may vary).
 
 ### ViewToggle.tsx
-This component provides a toggle interface for switching between views. It displays buttons for each available view and calls `onChange` when a view is selected.
+This component provides a toggle interface for switching between views. It displays buttons for each available view and calls `onChange` when a view is selected. The "Propose" button is conditionally shown only when the user has a Noun balance. The "Wallet" button is always visible for server wallet management.
+
+### ServerWalletDisplay.tsx
+This component provides a UI for managing CDP server wallets. It displays the server wallet address, allows copying the address to clipboard, and provides a form to send testnet ETH transactions. Key features:
+- **Wallet Address Display**: Shows the CDP-managed server wallet address with copy functionality
+- **Send Transaction Form**: Form to send Base Sepolia testnet ETH to any address
+- **Transaction Tracking**: Displays transaction hash with link to BaseScan explorer
+- **Error Handling**: Shows clear error messages and loading states
+- **Validation**: Validates Ethereum address format and ETH amounts
+
+The component uses the `useServerWallet` hook to automatically create or retrieve the user's server wallet, and calls the `send-transaction` Edge Function to execute transactions. It integrates with wagmi's `useAccount` hook to get the connected wallet address for mapping to the server wallet.
+
+**State Management**:
+- Uses `useServerWallet` hook for wallet address and loading state
+- Local state for form inputs (recipient address, amount)
+- Local state for transaction status (success, error, transaction hash)
+- Copy-to-clipboard state for visual feedback
+
+**Props**: None (uses hooks for all data)
+
+**Dependencies**:
+- `useAccount` from wagmi - Gets connected wallet address
+- `useServerWallet` - Manages server wallet lifecycle
+- `supabase` client - Calls Edge Functions
+- `parseEther` from viem - Converts ETH amounts to wei
 
 ## Component Communication Patterns
 

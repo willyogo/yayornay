@@ -25,9 +25,13 @@ The client application uses React for UI rendering, Wagmi for blockchain interac
 
 ### Backend Services
 - Supabase hosts a PostgreSQL database with Row Level Security enabled
+- Supabase Edge Functions provide serverless functions for server wallet management (Deno runtime)
 - Builder DAO Subgraph provides GraphQL API for auction and proposal data (subgraph-first approach)
 - Zora ZDK provides a GraphQL API client for fetching creator data
-- Coinbase Developer Platform provides the RPC endpoint for Base blockchain
+- Coinbase Developer Platform (CDP) provides:
+  - RPC endpoint for Base blockchain
+  - Server wallet management via CdpClient SDK
+  - Account creation and transaction signing
 
 ### Styling
 - Tailwind CSS 3.4.1 provides utility-first styling
@@ -39,10 +43,10 @@ The client application uses React for UI rendering, Wagmi for blockchain interac
 The application follows a layered architecture pattern with four distinct layers.
 
 ### Layer 1: Presentation Layer
-Located in `src/components/`, this layer handles UI rendering, user interactions, and visual feedback. Components include App (root routing), LandingPage (authentication gate), SwipeStack (core swipe interaction), ProposalCard (individual card rendering), CreatorFeedModal (detail view), and WalletConnect (wallet connection UI). These components are primarily presentational with minimal business logic.
+Located in `src/components/`, this layer handles UI rendering, user interactions, and visual feedback. Components include App (root routing), LandingPage (authentication gate), SwipeStack (core swipe interaction), ProposalCard (individual card rendering), CreatorFeedModal (detail view), WalletConnect (wallet connection UI), and ServerWalletDisplay (server wallet management UI). These components are primarily presentational with minimal business logic.
 
 ### Layer 2: Business Logic Layer
-Located in `src/hooks/`, this layer handles data fetching, mutations, and business rules. The `useProposals` hook fetches proposals from Supabase or returns mock data when test mode is enabled. The `useVoting` hook handles vote submission to the database. These custom hooks encapsulate data fetching logic.
+Located in `src/hooks/`, this layer handles data fetching, mutations, and business rules. The `useProposals` hook fetches proposals from Supabase or returns mock data when test mode is enabled. The `useVoting` hook handles vote submission to the database. The `useServerWallet` hook manages CDP server wallet lifecycle (creation, retrieval, caching). These custom hooks encapsulate data fetching logic.
 
 ### Layer 3: Data Access Layer
 Located in `src/lib/`, this layer provides external service clients and API abstractions. The Supabase client is a singleton instance. Wagmi configuration sets up the blockchain connection. Zora ZDK provides a GraphQL client for creator data. These clients use singleton patterns and typed interfaces.
@@ -61,6 +65,8 @@ Test mode is managed through React Context because it's needed across multiple c
 The application uses a **subgraph-first approach** for data fetching. For auctions and proposals, the app queries Builder DAO subgraphs first (faster, includes historical data), then falls back to contract reads or Supabase queries if subgraph is unavailable. This provides faster reads, reduces on-chain query load, and enables historical data access.
 
 The application uses Supabase as an intermediary database for proposals and votes rather than querying the blockchain directly. This provides faster reads through indexed queries, enables vote history tracking, stores proposal metadata, and uses Row Level Security for access control. The trade-off is that data must be synced between the blockchain and database.
+
+The application uses **Coinbase Developer Platform (CDP) server wallets** to enable gasless transactions and simplified wallet management. Server wallets are created and managed via Supabase Edge Functions using the CDP SDK. Accounts are managed server-side by CDP, eliminating the need for local key storage or encryption. This architecture allows the app to pay gas fees on behalf of users and simplifies the onboarding experience.
 
 ## Configuration Management
 
@@ -104,10 +110,21 @@ export const DAO_ADDRESS = '0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17' as const
 
 ## File Structure
 
-The source code is organized into: `main.tsx` as the entry point with providers, `App.tsx` as the root component, `components/` for the presentation layer, `hooks/` for business logic, `lib/` for data access, and `config/` for configuration constants.
+The source code is organized into:
+- `main.tsx` - Entry point with providers (WagmiProvider, QueryClientProvider, OnchainKitProvider)
+- `App.tsx` - Root component managing view routing
+- `components/` - Presentation layer (UI components)
+- `hooks/` - Business logic layer (data fetching, state management)
+- `lib/` - Data access layer (Supabase client, Wagmi config, API clients)
+- `config/` - Configuration constants (contracts, chain config)
+- `supabase/functions/` - Edge Functions for server wallet management
+  - `create-wallet/` - Creates CDP server wallets
+  - `get-wallet/` - Retrieves server wallet addresses
+  - `send-transaction/` - Sends transactions via CDP SDK
 
 ## Related Documentation
 
 - [Component Architecture](./components.md) - Detailed component structure
 - [Data Flow](./data-flow.md) - How data moves through the system
 - [State Management](./state-management.md) - State management patterns
+- [Server Wallets](./server-wallets.md) - CDP server wallet architecture and implementation

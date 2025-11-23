@@ -4,7 +4,6 @@ import { useAccount } from 'wagmi';
 import { queueVote, getQueuedVotesForVoter, QueuedVote } from '../lib/voteQueue';
 import { CONTRACTS, GovernorABI } from '../config/contracts';
 import { useSponsoredTransaction } from './useSponsoredTransaction';
-import { useServerWallet } from './useServerWallet';
 
 export type VoteType = 'for' | 'against' | 'abstain';
 
@@ -24,15 +23,11 @@ function voteTypeToSupport(voteType: VoteType): 0 | 1 | 2 {
 export function useVoting() {
   const { address } = useAccount();
   const sponsoredTx = useSponsoredTransaction();
-  const { serverWalletAddress } = useServerWallet(); // Available for future server wallet integration
   const [error, setError] = useState<string | null>(null);
 
   /**
    * Submit a vote on-chain using the Nouns Builder Governor contract
    * Gas is sponsored by Coinbase Paymaster for Smart Wallet users
-   * 
-   * Note: serverWalletAddress is available for future server wallet integration
-   * for gasless voting via Edge Functions
    */
   const submitVote = async (proposalId: string, voteType: VoteType) => {
     if (!address) {
@@ -57,7 +52,6 @@ export function useVoting() {
         proposalId: proposalIdBytes32,
         voteType,
         support,
-        serverWalletAvailable: !!serverWalletAddress,
       });
 
       // Execute sponsored transaction

@@ -11,12 +11,18 @@ Core architectural documentation and design decisions.
 - **[Components](./architecture/components.md)** - Component hierarchy, patterns, and responsibilities
 - **[Data Flow](./architecture/data-flow.md)** - How data moves through the application
 - **[State Management](./architecture/state-management.md)** - State management patterns and strategies
+- **[Server Wallets](./architecture/server-wallets.md)** - CDP server wallet system architecture
 
 
 ### [Integrations](./integrations/)
 Integration setup and implementation guides.
 
 - **[Zora Integration](./integrations/zora.md)** - Zora Coins SDK integration setup
+
+### [Guides](./guides/)
+Step-by-step guides for setup and development.
+
+- **[Edge Function Setup](./guides/edge-function-setup.md)** - Local development setup for Supabase Edge Functions
 
 ### [Features](./)
 Feature-specific documentation.
