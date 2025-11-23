@@ -41,12 +41,12 @@ type QueueSuggestion = {
   coinId: string;
   coinSymbol: string;
   coinName: string;
-  creatorName: string;
-  pfpUrl: string | null;
   confidenceScore: number;
   reason: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   addedAt: string;
+  creatorName?: string | null;
+  pfpUrl?: string | null;
 };
 
 type AnalysisResponse = {
@@ -83,9 +83,10 @@ const FALLBACK_DISPLAY = {
 
 const DEBOUNCE_MS = 400;
 const DEFAULT_API_ENDPOINT = 'https://api.yaynay.wtf/api/analyze';
+const DEFAULT_QUEUE_ENDPOINT = 'https://api.yaynay.wtf/api/queue';
 const SUBMISSION_ENDPOINT =
   import.meta.env?.VITE_SUBMISSION_ENDPOINT || DEFAULT_API_ENDPOINT;
-const QUEUE_ENDPOINT = import.meta.env?.VITE_QUEUE_ENDPOINT || DEFAULT_API_ENDPOINT;
+const QUEUE_ENDPOINT = import.meta.env?.VITE_QUEUE_ENDPOINT || DEFAULT_QUEUE_ENDPOINT;
 
 const mockQueueResponse = {
   stats: {
@@ -169,9 +170,8 @@ async function postSubmission(body: Record<string, unknown>) {
 async function fetchVotingQueue() {
   try {
     const response = await fetch(QUEUE_ENDPOINT, {
-      method: 'POST',
+      method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'queue', confidenceThreshold: 0.3 }),
     });
 
     if (!response.ok) {
@@ -777,27 +777,31 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                 <p className="text-sm text-gray-500">No proposals are currently queued.</p>
               )}
 
-              {queueSuggestions.map((suggestion) => (
-                <div
-                  key={suggestion.id}
-                  className="border border-gray-200 rounded-xl p-4 bg-gray-50/70 flex flex-col sm:flex-row sm:items-center gap-4"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-full overflow-hidden border border-white shadow bg-white">
-                      <img
-                        src={suggestion.pfpUrl || getAvatarUrl(suggestion.creatorName)}
-                        alt={suggestion.creatorName}
-                        className="w-full h-full object-cover"
-                      />
+              {queueSuggestions.map((suggestion) => {
+                const displayCreator =
+                  suggestion.creatorName || suggestion.coinName || suggestion.coinSymbol;
+                const avatarUrl = suggestion.pfpUrl || getAvatarUrl(displayCreator || suggestion.id);
+                const altLabel = displayCreator || suggestion.coinSymbol || suggestion.id;
+
+                return (
+                  <div
+                    key={suggestion.id}
+                    className="border border-gray-200 rounded-xl p-4 bg-gray-50/70 flex flex-col sm:flex-row sm:items-center gap-4"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-full overflow-hidden border border-white shadow bg-white">
+                        <img src={avatarUrl} alt={altLabel} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {suggestion.coinName} ({suggestion.coinSymbol})
+                        </p>
+                        {displayCreator && (
+                          <p className="text-xs text-gray-600 truncate">{displayCreator}</p>
+                        )}
+                        <p className="text-xs text-gray-500 truncate">Added {formatAddedAt(suggestion.addedAt)}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {suggestion.coinName} ({suggestion.coinSymbol})
-                      </p>
-                      <p className="text-xs text-gray-600 truncate">{suggestion.creatorName}</p>
-                      <p className="text-xs text-gray-500 truncate">Added {formatAddedAt(suggestion.addedAt)}</p>
-                    </div>
-                  </div>
 
                   <div className="flex items-center gap-2 sm:ml-auto">
                     <div
@@ -810,13 +814,14 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                     </div>
                   </div>
 
-                  {suggestion.reason && (
-                    <p className="text-xs text-gray-600 leading-snug bg-white border border-gray-200 rounded-lg p-3">
-                      {suggestion.reason}
-                    </p>
-                  )}
-                </div>
-              ))}
+                    {suggestion.reason && (
+                      <p className="text-xs text-gray-600 leading-snug bg-white border border-gray-200 rounded-lg p-3">
+                        {suggestion.reason}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
         </div>
