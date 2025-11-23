@@ -108,15 +108,17 @@ serve(async (req) => {
     // For other currencies, amount should be in the smallest unit
     const amountValue = typeof amount === 'string' ? amount : amount.toString()
     
-    // Build transaction object
+    // Build transaction object with proper EIP-1559 format
+    // CDP SDK expects input field, not data
     const transaction: any = {
       to,
       value: amountValue,
     }
     
-    // Add data field if provided (for contract calls)
+    // Add input field if data provided (for contract calls)
+    // CDP uses "input" instead of "data"
     if (data) {
-      transaction.data = data
+      transaction.input = data
     }
 
     console.log('[send-transaction] Sending transaction:', {
@@ -127,6 +129,7 @@ serve(async (req) => {
 
     // Send transaction using CdpClient
     // CDP manages the account server-side, we just need the address
+    // CDP will automatically handle gas estimation and EIP-1559 fields
     let txResult
     try {
       txResult = await cdp.evm.sendTransaction({

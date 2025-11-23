@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
 import { X, Heart, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
 import { ProposalCard, FlipState } from './ProposalCard';
@@ -9,16 +8,14 @@ import { useVotedProposals } from '../contexts/VotedProposalsContext';
 
 interface SwipeStackProps {
   proposals: Proposal[];
-  latestProposalTime?: number | null;
   onVote: (proposalId: string, voteType: VoteType) => Promise<void>;
-  onBeforeVote?: () => boolean | Promise<boolean>;
   onSubmitCreator: () => void;
   testMode?: boolean;
 }
 
 const NEXT_PROPOSAL_DELAY_MS = 12 * 60 * 1000; // 12 minutes
 
-export function SwipeStack({ proposals, latestProposalTime, onVote, onBeforeVote, testMode, onSubmitCreator }: SwipeStackProps) {
+export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: SwipeStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -148,14 +145,6 @@ export function SwipeStack({ proposals, latestProposalTime, onVote, onBeforeVote
 
   const handleVote = async (voteType: VoteType) => {
     if (!currentProposal || animationLock.current) return;
-
-    if (onBeforeVote) {
-      const canProceed = await onBeforeVote();
-      if (!canProceed) {
-        resetCardPosition();
-        return;
-      }
-    }
 
     // Don't allow voting on pending proposals
     if (currentProposal.status === 'pending') return;
@@ -341,29 +330,26 @@ export function SwipeStack({ proposals, latestProposalTime, onVote, onBeforeVote
     setCurrentIndex((prev) => Math.min(prev, availableProposals.length - 1));
   }, [availableProposals.length]);
 
-  const calculatedLatestProposalStart = useMemo(() => {
-    // Prioritize the explicitly passed latest proposal time from the subgraph
-    if (latestProposalTime) return latestProposalTime;
-
-    if (!proposals.length) return null;
-
-    const timestamps = proposals
-      .map((proposal) => {
-        const date = new Date(proposal.vote_start || proposal.created_at || proposal.updated_at);
-        return date.getTime();
-      })
-      .filter((value) => Number.isFinite(value)) as number[];
-
-    if (!timestamps.length) return null;
-    return Math.max(...timestamps);
-  }, [proposals, latestProposalTime]);
-
+  // Calculate next proposal time based on a fixed 12-minute schedule
+  // Proposals are submitted at :00, :12, :24, :36, :48 of each hour
   const nextProposalTimestamp = useMemo(() => {
-    if (!calculatedLatestProposalStart) {
-      return Date.now() + NEXT_PROPOSAL_DELAY_MS;
-    }
-    return calculatedLatestProposalStart + NEXT_PROPOSAL_DELAY_MS;
-  }, [calculatedLatestProposalStart]);
+    const now = Date.now();
+    const currentDate = new Date(now);
+    const currentMinute = currentDate.getMinutes();
+    const currentSecond = currentDate.getSeconds();
+    const currentMs = currentDate.getMilliseconds();
+    
+    // Calculate minutes into current 12-minute cycle
+    const cycleMinute = currentMinute % 12;
+    
+    // Calculate ms until next cycle boundary
+    const msUntilNext = 
+      (12 - cycleMinute - 1) * 60 * 1000 + // remaining full minutes
+      (60 - currentSecond) * 1000 + // remaining seconds
+      (1000 - currentMs); // remaining milliseconds
+    
+    return now + msUntilNext;
+  }, []);
 
   useEffect(() => {
     const updateCountdown = () => {
