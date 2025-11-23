@@ -1,14 +1,11 @@
 // @ts-nocheck
 // Supabase Edge Function to send transactions using a user's server wallet
-// This function securely signs and sends transactions server-side
+// This function securely signs and sends transactions server-side using CdpClient
 // Note: This file runs in Deno, not Node.js, so TypeScript checking is disabled
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Coinbase, Wallet } from 'npm:@coinbase/coinbase-sdk@latest'
-
-// Import encryption utilities
-import { decryptWalletData, getEncryptionKey } from '../_shared/crypto.ts'
+import { CdpClient } from 'npm:@coinbase/cdp-sdk@latest'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,13 +20,18 @@ serve(async (req) => {
 
   try {
     // Get environment variables
-    const cdpApiKeyName = Deno.env.get('VITE_CDP_API_KEY')
-    const cdpApiKeyPrivateKey = Deno.env.get('VITE_CDP_API_SECRET')
+    const cdpApiKeyId = Deno.env.get('VITE_CDP_API_KEY') || Deno.env.get('CDP_API_KEY_ID')
+    const cdpApiKeySecret = Deno.env.get('VITE_CDP_API_SECRET') || Deno.env.get('CDP_API_KEY_SECRET')
+    const cdpWalletSecret = Deno.env.get('CDP_WALLET_SECRET') || Deno.env.get('VITE_CDP_WALLET_SECRET')
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('VITE_SUPABASE_ANON_KEY')
 
-    if (!cdpApiKeyName || !cdpApiKeyPrivateKey) {
-      throw new Error('Missing CDP API credentials')
+    if (!cdpApiKeyId || !cdpApiKeySecret || !cdpWalletSecret) {
+      const missing = []
+      if (!cdpApiKeyId) missing.push('VITE_CDP_API_KEY or CDP_API_KEY_ID')
+      if (!cdpApiKeySecret) missing.push('VITE_CDP_API_SECRET or CDP_API_KEY_SECRET')
+      if (!cdpWalletSecret) missing.push('CDP_WALLET_SECRET or VITE_CDP_WALLET_SECRET')
+      throw new Error(`Missing CDP API credentials: ${missing.join(', ')}`)
     }
 
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -37,9 +39,10 @@ serve(async (req) => {
     }
 
     // Initialize CDP SDK
-    Coinbase.configure({
-      apiKeyName: cdpApiKeyName,
-      privateKey: cdpApiKeyPrivateKey,
+    const cdp = new CdpClient({
+      apiKeyId: cdpApiKeyId,
+      apiKeySecret: cdpApiKeySecret,
+      walletSecret: cdpWalletSecret,
     })
 
     // Initialize Supabase client
@@ -58,10 +61,10 @@ serve(async (req) => {
     // Normalize address to lowercase
     const normalizedAddress = userAddress.toLowerCase()
 
-    // Get wallet from database
+    // Get wallet from database - we only need the account address
     const { data: walletRecord, error: fetchError } = await supabase
       .from('server_wallets')
-      .select('*')
+      .select('server_wallet_address, network_id')
       .eq('user_address', normalizedAddress)
       .single()
 
@@ -72,31 +75,34 @@ serve(async (req) => {
       )
     }
 
-    // Decrypt wallet data before importing
-    const encryptionKey = getEncryptionKey()
-    const decryptedWalletDataString = await decryptWalletData(
-      walletRecord.wallet_data,
-      encryptionKey
-    )
+    const networkId = walletRecord.network_id || 'base-sepolia'
     
-    // Parse decrypted JSON string back to object
-    const decryptedWalletData = JSON.parse(decryptedWalletDataString)
+    // Convert amount to wei if currency is ETH (amount should be in wei already, but ensure it's a string)
+    // For other currencies, amount should be in the smallest unit
+    const amountValue = typeof amount === 'string' ? amount : amount.toString()
     
-    // Restore wallet from decrypted data
-    const wallet = await Wallet.import(decryptedWalletData)
-
-    // Send transaction
-    const transfer = await wallet.send({
+    // Build transaction object
+    const transaction: any = {
       to,
-      amount: amount.toString(),
-      currency: currency || 'ETH',
-      networkId: walletRecord.network_id || 'base-sepolia',
-      data: data || undefined,
+      value: amountValue,
+    }
+    
+    // Add data field if provided (for contract calls)
+    if (data) {
+      transaction.data = data
+    }
+
+    // Send transaction using CdpClient
+    // CDP manages the account server-side, we just need the address
+    const txResult = await cdp.evm.sendTransaction({
+      address: walletRecord.server_wallet_address,
+      network: networkId,
+      transaction,
     })
 
     return new Response(
       JSON.stringify({
-        transactionHash: transfer.hash,
+        transactionHash: txResult.transactionHash,
         status: 'success',
         message: 'Transaction sent successfully',
       }),

@@ -5,48 +5,69 @@ import { supabase } from '../lib/supabase';
 /**
  * Hook to manage server wallet for the connected user
  * 
- * Note: This is a placeholder implementation. The hook will:
- * - Check if user has a server wallet
- * - Create one if needed via Edge Function
- * - Cache the wallet address
- * 
- * TODO: Implement full functionality
+ * Automatically:
+ * - Checks if user has a server wallet
+ * - Creates one if needed via Edge Function
+ * - Caches the wallet address
  */
 export function useServerWallet() {
   const { address } = useAccount();
   const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(null);
+  const [walletId, setWalletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!address) {
       setServerWalletAddress(null);
+      setWalletId(null);
       setLoading(false);
+      setError(null);
       return;
     }
 
     async function getOrCreateServerWallet() {
+      setLoading(true);
+      setError(null);
+      
       try {
+        console.log('[useServerWallet] Fetching wallet for address:', address);
+        
         // First, try to get existing wallet
         const { data: existingWallet, error: getError } = await supabase.functions.invoke('get-wallet', {
           body: { userAddress: address },
         });
 
+        console.log('[useServerWallet] get-wallet response:', { existingWallet, getError });
+
         if (existingWallet && !getError) {
+          console.log('[useServerWallet] Found existing wallet:', existingWallet.serverWalletAddress);
           setServerWalletAddress(existingWallet.serverWalletAddress);
+          setWalletId(existingWallet.walletId);
           setLoading(false);
           return;
         }
 
         // If no wallet exists, create one
+        console.log('[useServerWallet] No existing wallet found, creating new one...');
         const { data: newWallet, error: createError } = await supabase.functions.invoke('create-wallet', {
           body: { userAddress: address },
         });
 
+        console.log('[useServerWallet] create-wallet response:', { newWallet, createError });
+
         if (newWallet && !createError) {
+          console.log('[useServerWallet] Created new wallet:', newWallet.serverWalletAddress);
           setServerWalletAddress(newWallet.serverWalletAddress);
+          setWalletId(newWallet.walletId);
+        } else {
+          const errorMsg = createError?.message || newWallet?.error || 'Failed to create wallet';
+          console.error('[useServerWallet] Error creating wallet:', errorMsg);
+          setError(errorMsg);
         }
-      } catch (error) {
-        console.error('Error getting/creating server wallet:', error);
+      } catch (err) {
+        console.error('[useServerWallet] Exception:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setLoading(false);
       }
@@ -55,7 +76,7 @@ export function useServerWallet() {
     getOrCreateServerWallet();
   }, [address]);
 
-  return { serverWalletAddress, loading };
+  return { serverWalletAddress, walletId, loading, error };
 }
 
 
