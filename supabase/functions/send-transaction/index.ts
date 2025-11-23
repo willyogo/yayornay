@@ -26,6 +26,7 @@ serve(async (req) => {
     const cdpWalletSecret = Deno.env.get('CDP_WALLET_SECRET') || Deno.env.get('VITE_CDP_WALLET_SECRET')
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('VITE_SUPABASE_ANON_KEY')
+    const paymasterUrl = Deno.env.get('VITE_PAYMASTER_URL') || Deno.env.get('PAYMASTER_URL')
 
     if (!cdpApiKeyId || !cdpApiKeySecret || !cdpWalletSecret) {
       const missing = []
@@ -38,6 +39,8 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error('Missing Supabase credentials')
     }
+
+    console.log('[send-transaction] Paymaster configured:', !!paymasterUrl)
 
     // Initialize CDP SDK
     const cdp = new CdpClient({
@@ -97,6 +100,9 @@ serve(async (req) => {
       )
     }
 
+    console.log('[send-transaction] 🔑 SERVER WALLET ADDRESS:', walletRecord.server_wallet_address)
+    console.log('[send-transaction] ⚠️  This wallet needs ETH for gas. Fund it at:', `https://basescan.org/address/${walletRecord.server_wallet_address}`)
+
     // Use network from wallet record, or fall back to constants-based detection
     const networkId = walletRecord.network_id || getCdpNetwork()
     console.log('[send-transaction] Using network:', networkId, {
@@ -128,23 +134,57 @@ serve(async (req) => {
       valueType: typeof amountValue,
     })
 
-    // Send transaction using CdpClient
-    // CDP manages the account server-side, we just need the address
-    // CDP will automatically handle gas estimation and EIP-1559 fields
+    // Use Smart Account sendUserOperation for automatic Paymaster support
+    // Smart Accounts on Base automatically use CDP Paymaster
+    console.log('[send-transaction] Using Smart Account for gasless transaction')
+    
     let txResult
     try {
-      txResult = await cdp.evm.sendTransaction({
-        address: walletRecord.server_wallet_address,
-        network: networkId,
-        transaction,
+      // Get the Smart Account by wallet ID (stored as server_wallet_id)
+      const smartAccountName = walletRecord.server_wallet_id
+      const ownerName = smartAccountName.replace('yaynay-smart-', 'yaynay-owner-')
+      
+      console.log('[send-transaction] Loading Smart Account:', { smartAccountName, ownerName })
+      
+      const owner = await cdp.evm.getOrCreateAccount({ name: ownerName })
+      const smartAccount = await cdp.evm.getOrCreateSmartAccount({
+        name: smartAccountName,
+        owner,
       })
-      console.log('[send-transaction] CDP Transaction result:', txResult)
+      
+      // Convert transaction to user operation call format
+      const calls = [{
+        to: transaction.to,
+        value: BigInt(transaction.value),
+        data: transaction.data || '0x',
+      }]
+      
+      console.log('[send-transaction] Sending user operation with calls:', calls)
+      
+      // Send user operation - automatically uses CDP Paymaster on Base!
+      const userOperation = await smartAccount.sendUserOperation({
+        network: networkId,
+        calls,
+      })
+      
+      console.log('[send-transaction] User operation sent:', userOperation.hash)
+      
+      // Wait for confirmation
+      const receipt = await smartAccount.waitForUserOperation(userOperation)
+      
+      console.log('[send-transaction] ✅ Transaction confirmed (gasless via Paymaster):', receipt)
+      
+      txResult = {
+        transactionHash: receipt.transactionHash || userOperation.hash,
+        userOperationHash: userOperation.hash,
+      }
     } catch (cdpError) {
-      console.error('[send-transaction] CDP sendTransaction failed:', {
+      console.error('[send-transaction] Smart Account operation failed:', {
         error: cdpError,
         message: cdpError instanceof Error ? cdpError.message : 'Unknown CDP error',
         stack: cdpError instanceof Error ? cdpError.stack : undefined,
       })
+      
       throw cdpError
     }
 
