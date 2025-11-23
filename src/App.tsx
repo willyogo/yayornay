@@ -6,12 +6,12 @@ import { AuctionPage } from './components/AuctionPage';
 import { SwipeStack } from './components/SwipeStack';
 import { useProposals } from './hooks/useProposals';
 import { useVoting } from './hooks/useVoting';
-import { useNounBalance } from './hooks/useNounBalance';
 import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
 import { DirectProposalPage } from './components/DirectProposalPage';
 import { ServerWalletDisplay } from './components/ServerWalletDisplay';
 import { NoVotesModal } from './components/NoVotesModal';
+import { DelegationModal } from './components/DelegationModal';
 import { AppView } from './types/view';
 import { VotedProposalsProvider, useVotedProposals } from './contexts/VotedProposalsContext';
 
@@ -35,29 +35,82 @@ function AppContent() {
   const { isConnected, address } = useAccount();
   const [testMode] = useState(() => getTestModeFromURL());
   const [view, setView] = useState<AppView>('landing');
-  const [showVoteModal, setShowVoteModal] = useState(false);
-  const { hasNoun } = useNounBalance();
   // Pass user address to only fetch proposals they haven't voted on
-  const { proposals, latestProposalTime, loading } = useProposals(testMode, address);
-  const { submitVote } = useVoting();
+  const { proposals, loading } = useProposals(testMode, address);
+  const { 
+    submitVoteViaServerWallet, 
+    isDelegatedToServerWallet, 
+    hasVotingPower 
+  } = useVoting();
   const { addVotedProposal } = useVotedProposals();
 
-  // Wrap submitVote to track votes immediately in context
-  const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
-    // Add to voted proposals context immediately (optimistic update)
-    addVotedProposal(proposalId, voteType);
+  // Modal state
+  const [showNoVotesModal, setShowNoVotesModal] = useState(false);
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
 
-    // Submit vote in background (no need to refetch immediately)
-    await submitVote(proposalId, voteType);
+  // Store pending vote to execute after delegation
+  const [pendingVote, setPendingVote] = useState<{ proposalId: string; voteType: 'for' | 'against' | 'abstain' } | null>(null);
+
+  // Wrap submitVote to track votes immediately in context and handle delegation logic
+  const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
+    console.log('[App] handleVote called:', { proposalId, voteType, hasVotingPower, isDelegatedToServerWallet });
+    
+    // Check if user has voting power
+    if (!hasVotingPower) {
+      // Show modal directing them to auction
+      console.log('[App] User has no voting power - showing NoVotesModal');
+      setShowNoVotesModal(true);
+      throw new Error('No voting power'); // Throw to prevent SwipeStack from advancing
+    }
+
+    // Check if user has delegated to server wallet
+    if (isDelegatedToServerWallet) {
+      // Vote via server wallet (invisible voting)
+      console.log('[App] User delegated to server wallet - voting via server wallet');
+      
+      // Add to voted proposals context immediately (optimistic update)
+      addVotedProposal(proposalId, voteType);
+      
+      // Submit vote via server wallet
+      try {
+        await submitVoteViaServerWallet(proposalId, voteType);
+        console.log('[App] Server wallet vote successful');
+      } catch (error) {
+        console.error('[App] Server wallet vote failed:', error);
+        throw error;
+      }
+    } else {
+      // User has voting power but hasn't delegated - show delegation modal
+      console.log('[App] User has voting power but NOT delegated - showing DelegationModal');
+      
+      // Store the pending vote to execute after delegation
+      setPendingVote({ proposalId, voteType });
+      setShowDelegationModal(true);
+      
+      throw new Error('Delegation required'); // Throw to prevent SwipeStack from advancing
+    }
   };
 
-  const handleBeforeVote = () => {
-     // Check if user has voting power (unless in test mode)
-    if (!hasNoun && !testMode) {
-      setShowVoteModal(true);
-      return false;
+  // Execute pending vote after successful delegation
+  const handleDelegationSuccess = async () => {
+    console.log('[App] Delegation successful, executing pending vote:', pendingVote);
+    setShowDelegationModal(false);
+    
+    if (pendingVote) {
+      const { proposalId, voteType } = pendingVote;
+      setPendingVote(null);
+      
+      // Now vote via server wallet
+      console.log('[App] Voting via server wallet after delegation');
+      addVotedProposal(proposalId, voteType);
+      
+      try {
+        await submitVoteViaServerWallet(proposalId, voteType);
+        console.log('[App] Server wallet vote successful after delegation');
+      } catch (error) {
+        console.error('[App] Server wallet vote failed after delegation:', error);
+      }
     }
-    return true;
   };
   
   // Track the view before connecting to return to it after login
@@ -182,20 +235,28 @@ function AppContent() {
 
         <SwipeStack
           proposals={proposals}
-          latestProposalTime={latestProposalTime}
           onVote={handleVote}
-          onBeforeVote={handleBeforeVote}
           onSubmitCreator={() => setView('submit')}
           testMode={testMode}
         />
-        
-        <NoVotesModal 
-          isOpen={showVoteModal} 
-          onClose={() => setShowVoteModal(false)}
-          onJoin={() => {
-            setShowVoteModal(false);
+
+        {/* Modals */}
+        <NoVotesModal
+          isOpen={showNoVotesModal}
+          onClose={() => setShowNoVotesModal(false)}
+          onGoToAuction={() => {
+            setShowNoVotesModal(false);
             setView('auction');
           }}
+        />
+        
+        <DelegationModal
+          isOpen={showDelegationModal}
+          onClose={() => {
+            setShowDelegationModal(false);
+            setPendingVote(null); // Clear pending vote if user closes modal
+          }}
+          onDelegateSuccess={handleDelegationSuccess}
         />
       </div>
     </TestModeContext.Provider>

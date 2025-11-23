@@ -3,46 +3,76 @@ import { X } from 'lucide-react';
 interface NoVotesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onJoin: () => void;
+  onGoToAuction: () => void;
 }
 
-export function NoVotesModal({ isOpen, onClose, onJoin }: NoVotesModalProps) {
+/**
+ * Modal shown when user attempts to vote but has no NFTs/voting power
+ * Directs them to the auction page to bid on NFTs
+ */
+export function NoVotesModal({ isOpen, onClose, onGoToAuction }: NoVotesModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl p-6 animate-in fade-in zoom-in-95 duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      
+      {/* Modal */}
+      <div 
+        className="relative w-full max-w-md rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-700/50 transition-colors"
+          aria-label="Close"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5 text-gray-400" />
         </button>
 
-        <div className="text-center space-y-4 pt-2">
-          <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center">
-            <span className="text-3xl">🗳️</span>
+        <div className="p-8 pt-12">
+          {/* Icon */}
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+              <span className="text-3xl">🏛️</span>
+            </div>
           </div>
-          
-          <h2 className="text-2xl font-bold text-gray-900">
-            1 NFT = 1 Vote
+
+          {/* Title */}
+          <h2 className="text-2xl font-bold text-white text-center mb-4">
+            Get Voting Power
           </h2>
 
-          <p className="text-gray-600 text-lg leading-relaxed">
-            Bid on NFTs to vote. <br />
-            <span className="font-medium text-gray-900">1 NFT</span> is auctioned off every <span className="font-medium text-gray-900">5 minutes</span> to the highest bidder.
+          {/* Message */}
+          <p className="text-gray-300 text-center mb-2 leading-relaxed">
+            Bid on NFTs to vote. 1 NFT is auctioned off every 5 minutes to the highest bidder.
           </p>
-          
+          <p className="text-xl font-semibold text-center text-purple-400 mb-8">
+            1 NFT = 1 vote
+          </p>
+
+          {/* CTA Button */}
           <button
-            onClick={onJoin}
-            className="w-full py-3.5 bg-black text-white rounded-xl font-semibold hover:bg-gray-900 transition-colors"
+            onClick={onGoToAuction}
+            className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
           >
-            Get Votes
+            Go to Auction
+          </button>
+
+          {/* Secondary action */}
+          <button
+            onClick={onClose}
+            className="w-full mt-3 py-3 px-6 rounded-xl bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-medium transition-all duration-200"
+          >
+            Maybe Later
           </button>
         </div>
       </div>
     </div>
   );
 }
-
