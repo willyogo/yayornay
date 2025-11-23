@@ -39,12 +39,14 @@ export function getCdpNetworkFromChainId(chainId: number): string {
  * @returns true if in development, false if in production
  */
 function isDevelopment(): boolean {
-  // Check for explicit environment variable
+  // Check for explicit environment variable (highest priority)
   const env = Deno.env.get('ENVIRONMENT') || Deno.env.get('NODE_ENV')
   if (env === 'development' || env === 'dev') {
+    console.log('[constants] Detected development via ENVIRONMENT/NODE_ENV:', env)
     return true
   }
   if (env === 'production' || env === 'prod') {
+    console.log('[constants] Detected production via ENVIRONMENT/NODE_ENV:', env)
     return false
   }
   
@@ -53,12 +55,17 @@ function isDevelopment(): boolean {
   if (supabaseUrl) {
     // Local development typically uses localhost or 127.0.0.1
     if (supabaseUrl.includes('localhost') || supabaseUrl.includes('127.0.0.1')) {
+      console.log('[constants] Detected development via Supabase URL (localhost):', supabaseUrl)
       return true
     }
     // Production uses supabase.co domain
     if (supabaseUrl.includes('supabase.co')) {
+      console.log('[constants] Detected production via Supabase URL (supabase.co):', supabaseUrl)
       return false
     }
+    console.log('[constants] Unknown Supabase URL format, defaulting to production:', supabaseUrl)
+  } else {
+    console.log('[constants] No Supabase URL found, defaulting to production')
   }
   
   // Default to production for safety
@@ -82,21 +89,28 @@ export function getCdpNetwork(chainId?: number): string {
   // Check environment variable first (allows explicit override)
   const envNetwork = Deno.env.get('CDP_NETWORK_ID')
   if (envNetwork) {
+    console.log('[constants] Using CDP_NETWORK_ID from environment:', envNetwork)
     return envNetwork
   }
   
   // Auto-detect: Use Sepolia for development, Mainnet for production
   const isDev = isDevelopment()
+  const detectedNetwork = isDev ? CDP_NETWORKS.BASE_SEPOLIA : CDP_NETWORKS.BASE_MAINNET
+  console.log('[constants] Auto-detected network:', detectedNetwork, '(isDev:', isDev, ')')
+  
   if (isDev) {
     return CDP_NETWORKS.BASE_SEPOLIA
   }
   
   // If chain ID provided, use it to determine network
   if (chainId !== undefined) {
-    return getCdpNetworkFromChainId(chainId)
+    const chainNetwork = getCdpNetworkFromChainId(chainId)
+    console.log('[constants] Using chain ID', chainId, '-> network:', chainNetwork)
+    return chainNetwork
   }
   
   // Default to mainnet for production (safety fallback)
+  console.log('[constants] Using default production network:', CDP_NETWORKS.BASE_MAINNET)
   return CDP_NETWORKS.BASE_MAINNET
 }
 

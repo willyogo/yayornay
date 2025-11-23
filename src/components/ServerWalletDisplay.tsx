@@ -1,22 +1,24 @@
 import { useState } from 'react';
-import { Copy, Check, Send, Wallet, ExternalLink } from 'lucide-react';
+import { Copy, Check, Send, Wallet, ExternalLink, ChevronDown, ChevronUp, Bug } from 'lucide-react';
 import { useAccount, useChainId } from 'wagmi';
 import { useServerWallet } from '../hooks/useServerWallet';
 import { parseEther } from 'viem';
-import { supabase } from '../lib/supabase';
-import { CHAIN_CONFIG } from '../config/constants';
+import { supabase, supabaseUrl } from '../lib/supabase';
+import { CHAIN_CONFIG, getCdpNetwork } from '../config/constants';
 
 export function ServerWalletDisplay() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const { serverWalletAddress, loading, error: walletError } = useServerWallet();
+  const { serverWalletAddress, loading, error: walletError, errorDetails, walletId } = useServerWallet();
   const [copied, setCopied] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sendErrorDetails, setSendErrorDetails] = useState<any>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const handleCopy = async () => {
     if (!serverWalletAddress) return;
@@ -32,6 +34,7 @@ export function ServerWalletDisplay() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSendErrorDetails(null);
     setSuccess(null);
     setTxHash(null);
 
@@ -69,20 +72,47 @@ export function ServerWalletDisplay() {
         throw new Error('Please connect your wallet first');
       }
 
+      const requestBody = {
+        userAddress: address,
+        to: recipientAddress,
+        amount: amountWei,
+        currency: 'ETH',
+      };
+
+      console.log('[ServerWalletDisplay] Sending transaction:', requestBody);
+      
       const { data, error: invokeError } = await supabase.functions.invoke('send-transaction', {
-        body: {
-          userAddress: address,
-          to: recipientAddress,
-          amount: amountWei,
-          currency: 'ETH',
-        },
+        body: requestBody,
+      });
+
+      console.log('[ServerWalletDisplay] send-transaction response:', {
+        data,
+        error: invokeError,
+        status: (invokeError as any)?.status,
       });
 
       if (invokeError) {
-        throw new Error(invokeError.message || 'Failed to send transaction');
+        const errorInfo = {
+          message: invokeError.message || 'Failed to send transaction',
+          statusCode: (invokeError as any)?.status,
+          errorDetails: invokeError,
+          functionName: 'send-transaction',
+          requestBody,
+          timestamp: new Date().toISOString(),
+        };
+        setSendErrorDetails(errorInfo);
+        throw new Error(errorInfo.message);
       }
 
       if (data?.error) {
+        const errorInfo = {
+          message: data.error,
+          errorDetails: data,
+          functionName: 'send-transaction',
+          requestBody,
+          timestamp: new Date().toISOString(),
+        };
+        setSendErrorDetails(errorInfo);
         throw new Error(data.error);
       }
 
@@ -96,7 +126,15 @@ export function ServerWalletDisplay() {
       }
     } catch (err) {
       console.error('Error sending transaction:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send transaction');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send transaction';
+      setError(errorMessage);
+      if (!sendErrorDetails) {
+        setSendErrorDetails({
+          message: errorMessage,
+          errorDetails: err,
+          timestamp: new Date().toISOString(),
+        });
+      }
     } finally {
       setIsSending(false);
     }
@@ -142,15 +180,63 @@ export function ServerWalletDisplay() {
 
   if (walletError) {
     return (
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+      <div className="bg-white border border-red-200 rounded-2xl shadow-sm p-6">
         <div className="space-y-4">
           <div className="flex items-center gap-3 text-red-600">
             <Wallet className="w-5 h-5" />
             <span className="font-medium">Error loading server wallet</span>
           </div>
           <div className="rounded-lg bg-red-50 border border-red-200 p-3">
-            <p className="text-sm text-red-700">{walletError}</p>
+            <p className="text-sm text-red-700 font-medium">{walletError}</p>
+            {errorDetails?.statusCode && (
+              <p className="text-xs text-red-600 mt-1">HTTP Status: {errorDetails.statusCode}</p>
+            )}
           </div>
+          
+          {/* Debug Information */}
+          <div className="border border-gray-200 rounded-lg">
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className="w-full flex items-center justify-between p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Bug className="w-4 h-4" />
+                <span>Debug Information</span>
+              </div>
+              {showDebug ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            {showDebug && (
+              <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-3 text-xs font-mono">
+                <div>
+                  <div className="text-gray-500 mb-1">Error Details:</div>
+                  <pre className="bg-white p-2 rounded border overflow-auto max-h-48">
+                    {JSON.stringify(errorDetails, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <div className="text-gray-500 mb-1">Environment:</div>
+                  <div className="bg-white p-2 rounded border space-y-1">
+                    <div>Chain ID: {chainId}</div>
+                    <div>Network: {networkName}</div>
+                    <div>CDP Network: {getCdpNetwork()}</div>
+                    <div>Supabase URL: {supabaseUrl}</div>
+                    <div>User Address: {address}</div>
+                    {errorDetails?.functionName && <div>Function: {errorDetails.functionName}</div>}
+                    {errorDetails?.timestamp && <div>Timestamp: {errorDetails.timestamp}</div>}
+                  </div>
+                </div>
+                {errorDetails?.requestBody && (
+                  <div>
+                    <div className="text-gray-500 mb-1">Request Body:</div>
+                    <pre className="bg-white p-2 rounded border overflow-auto">
+                      {JSON.stringify(errorDetails.requestBody, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="text-xs text-gray-500 space-y-1">
             <p>Connected address: {address}</p>
             <p>Check the browser console for more details.</p>
@@ -270,8 +356,49 @@ export function ServerWalletDisplay() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-            {error}
+          <div className="rounded-lg bg-red-50 border border-red-200 p-3 space-y-3">
+            <div className="text-sm text-red-700">
+              <p className="font-medium">{error}</p>
+              {sendErrorDetails?.statusCode && (
+                <p className="text-xs text-red-600 mt-1">HTTP Status: {sendErrorDetails.statusCode}</p>
+              )}
+            </div>
+            
+            {/* Debug Information for Send Errors */}
+            <div className="border border-red-200 rounded">
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                className="w-full flex items-center justify-between p-2 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Bug className="w-3 h-3" />
+                  <span>Show Debug Info</span>
+                </div>
+                {showDebug ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+              {showDebug && sendErrorDetails && (
+                <div className="p-3 bg-red-50 border-t border-red-200 space-y-2 text-xs font-mono">
+                  <div>
+                    <div className="text-red-600 mb-1">Error Details:</div>
+                    <pre className="bg-white p-2 rounded border overflow-auto max-h-48 text-xs">
+                      {JSON.stringify(sendErrorDetails, null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <div className="text-red-600 mb-1">Environment:</div>
+                    <div className="bg-white p-2 rounded border space-y-1">
+                      <div>Chain ID: {chainId}</div>
+                      <div>Network: {networkName}</div>
+                      <div>CDP Network: {getCdpNetwork()}</div>
+                      <div>Supabase URL: {supabaseUrl}</div>
+                      <div>Server Wallet: {serverWalletAddress || 'N/A'}</div>
+                      <div>Wallet ID: {walletId || 'N/A'}</div>
+                      {sendErrorDetails.timestamp && <div>Timestamp: {sendErrorDetails.timestamp}</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -317,6 +444,50 @@ export function ServerWalletDisplay() {
           <strong>Note:</strong> This wallet is managed by Coinbase Developer Platform. 
           Transactions are signed server-side. Make sure you have ETH in this wallet before sending.
         </p>
+      </div>
+
+      {/* Debug Panel (always visible in case of issues) */}
+      <div className="border border-gray-200 rounded-lg">
+        <button
+          onClick={() => setShowDebug(!showDebug)}
+          className="w-full flex items-center justify-between p-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Bug className="w-4 h-4" />
+            <span>Debug Information</span>
+          </div>
+          {showDebug ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {showDebug && (
+          <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-3 text-xs font-mono">
+            <div>
+              <div className="text-gray-500 mb-1 font-semibold">Environment:</div>
+              <div className="bg-white p-2 rounded border space-y-1">
+                <div>Chain ID: {chainId}</div>
+                <div>Network: {networkName}</div>
+                <div>CDP Network: {getCdpNetwork()}</div>
+                <div>Supabase URL: {supabaseUrl}</div>
+                <div>Is Mainnet: {isMainnet ? 'Yes' : 'No'}</div>
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-500 mb-1 font-semibold">Wallet Info:</div>
+              <div className="bg-white p-2 rounded border space-y-1">
+                <div>User Address: {address}</div>
+                <div>Server Wallet: {serverWalletAddress || 'N/A'}</div>
+                <div>Wallet ID: {walletId || 'N/A'}</div>
+              </div>
+            </div>
+            {errorDetails && (
+              <div>
+                <div className="text-gray-500 mb-1 font-semibold">Last Error:</div>
+                <pre className="bg-white p-2 rounded border overflow-auto max-h-48 text-xs">
+                  {JSON.stringify(errorDetails, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

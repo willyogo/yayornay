@@ -87,6 +87,11 @@ serve(async (req) => {
 
     // Get network from constants (respects CDP_NETWORK_ID env var, defaults to mainnet)
     const networkId = getCdpNetwork()
+    console.log('[create-wallet] Detected network:', networkId, {
+      envVar: Deno.env.get('CDP_NETWORK_ID'),
+      supabaseUrl: Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL'),
+      environment: Deno.env.get('ENVIRONMENT') || Deno.env.get('NODE_ENV'),
+    })
     
     // Create new EVM account using CdpClient
     // CDP manages the account server-side, we just need to store the address
