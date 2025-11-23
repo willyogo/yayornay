@@ -102,9 +102,13 @@ export function ServerWalletDisplay() {
     }
   };
 
+  // Determine network info based on chain ID
+  const isMainnet = chainId === CHAIN_CONFIG.ID; // 8453 = Base Mainnet
+  const networkName = isMainnet ? 'Base Mainnet' : 'Base Sepolia';
+  const ethLabel = isMainnet ? 'Mainnet ETH' : 'Testnet ETH';
+
   const getExplorerUrl = (hash: string) => {
     // Use mainnet explorer for Base Mainnet (8453), sepolia explorer for Base Sepolia (84532)
-    const isMainnet = chainId === CHAIN_CONFIG.ID;
     const explorerBase = isMainnet ? 'https://basescan.org' : 'https://sepolia.basescan.org';
     return `${explorerBase}/tx/${hash}`;
   };
@@ -196,7 +200,7 @@ export function ServerWalletDisplay() {
           Server Wallet
         </h2>
         <p className="text-sm text-gray-600">
-          Your CDP-managed server wallet address on Base Sepolia
+          Your CDP-managed server wallet address on {networkName}
         </p>
       </div>
 
@@ -226,7 +230,7 @@ export function ServerWalletDisplay() {
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Send className="w-5 h-5" />
-            Send Testnet ETH
+            Send {ethLabel}
           </h3>
         </div>
 
