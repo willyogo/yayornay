@@ -93,14 +93,24 @@ serve(async (req) => {
       environment: Deno.env.get('ENVIRONMENT') || Deno.env.get('NODE_ENV'),
     })
     
-    // Create new EVM account using CdpClient
-    // CDP manages the account server-side, we just need to store the address
-    const evmAccount = await cdp.evm.createAccount()
+    // Create Smart Account for gasless transactions via CDP Paymaster
+    // Smart Accounts on Base automatically use CDP Paymaster for gas sponsorship
+    console.log('[create-wallet] Creating Smart Account with owner for user:', normalizedAddress)
     
-    const serverWalletAddress = evmAccount.address
-    // Use address as the wallet ID since CDP manages accounts by address
-    // If evmAccount has an id field, use that instead
-    const walletId = evmAccount.id || evmAccount.address
+    // Step 1: Create an EOA owner
+    const accountName = `yaynay-owner-${normalizedAddress.slice(2, 10)}`
+    const owner = await cdp.evm.getOrCreateAccount({ name: accountName })
+    console.log('[create-wallet] Created owner EOA:', owner.address)
+    
+    // Step 2: Create Smart Account owned by the EOA
+    const smartAccountName = `yaynay-smart-${normalizedAddress.slice(2, 10)}`
+    const smartAccount = await cdp.evm.getOrCreateSmartAccount({
+      name: smartAccountName,
+      owner,
+    })
+    
+    const serverWalletAddress = smartAccount.address
+    const walletId = smartAccountName
 
     // Store wallet metadata in database
     // Note: With CdpClient, we don't need to store wallet_data since CDP manages accounts server-side
