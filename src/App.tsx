@@ -50,9 +50,12 @@ function AppContent() {
 
   // Wrap submitVote to track votes immediately in context and handle delegation logic
   const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
+    console.log('[App] handleVote called:', { proposalId, voteType, hasVotingPower, isDelegatedToServerWallet });
+    
     // Check if user has voting power
     if (!hasVotingPower) {
       // Show modal directing them to auction
+      console.log('[App] User has no voting power - showing NoVotesModal');
       setShowNoVotesModal(true);
       return;
     }
@@ -60,16 +63,22 @@ function AppContent() {
     // Check if user has delegated to server wallet
     if (isDelegatedToServerWallet) {
       // Vote via server wallet (invisible voting)
-      console.log('[App] Voting via server wallet (delegated)');
+      console.log('[App] User delegated to server wallet - voting via server wallet');
       
       // Add to voted proposals context immediately (optimistic update)
       addVotedProposal(proposalId, voteType);
       
       // Submit vote via server wallet
-      await submitVoteViaServerWallet(proposalId, voteType);
+      try {
+        await submitVoteViaServerWallet(proposalId, voteType);
+        console.log('[App] Server wallet vote successful');
+      } catch (error) {
+        console.error('[App] Server wallet vote failed:', error);
+        throw error;
+      }
     } else {
       // User has voting power but hasn't delegated - show delegation modal
-      console.log('[App] User has voting power but not delegated - showing delegation modal');
+      console.log('[App] User has voting power but NOT delegated - showing DelegationModal');
       setShowDelegationModal(true);
       
       // Store the pending vote to execute after delegation (if they choose to delegate)
