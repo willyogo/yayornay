@@ -181,7 +181,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
               }}
             >
               <div className="px-6 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors">
-                <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
+                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200 bg-white flex-shrink-0">
                   <img
                     src={getAvatarUrl(proposal.creator_username || proposal.creator_address)}
                     alt={proposal.creator_username || 'Creator'}
@@ -192,16 +192,10 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
-                    {displayData.displayName || proposal.creator_username || (
+                    ${displayData.displayName || proposal.creator_username || (
                       <EnsName address={proposal.creator_address} className="text-2xl font-bold text-gray-900" />
                     )}
                   </h2>
-                  {coinData && (
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {displayData.holders} holders
-                    </p>
-                  )}
                 </div>
               </div>
 
