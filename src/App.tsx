@@ -10,6 +10,7 @@ import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
 import { DirectProposalPage } from './components/DirectProposalPage';
 import { ServerWalletDisplay } from './components/ServerWalletDisplay';
+import { DelegationModal } from './components/DelegationModal';
 import { AppView } from './types/view';
 import { VotedProposalsProvider, useVotedProposals } from './contexts/VotedProposalsContext';
 
@@ -35,16 +36,41 @@ function AppContent() {
   const [view, setView] = useState<AppView>('landing');
   // Pass user address to only fetch proposals they haven't voted on
   const { proposals, loading } = useProposals(testMode, address);
-  const { submitVote } = useVoting();
+  const {
+    submitVote,
+    needsDelegation,
+    isDelegated,
+    serverWalletAddress,
+    clearDelegationNeeded,
+  } = useVoting();
   const { addVotedProposal } = useVotedProposals();
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
 
   // Wrap submitVote to track votes immediately in context
   const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
-    // Add to voted proposals context immediately (optimistic update)
-    addVotedProposal(proposalId, voteType);
+    try {
+      // Add to voted proposals context immediately (optimistic update)
+      addVotedProposal(proposalId, voteType);
 
-    // Submit vote in background (no need to refetch immediately)
-    await submitVote(proposalId, voteType);
+      // Submit vote in background (no need to refetch immediately)
+      await submitVote(proposalId, voteType);
+    } catch (error) {
+      // Check if error is delegation required
+      if (error instanceof Error && error.message === 'DELEGATION_REQUIRED') {
+        setShowDelegationModal(true);
+        // Don't add to voted proposals if delegation is needed
+        // The user hasn't actually voted yet
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
+  };
+
+  // Handle delegation completion
+  const handleDelegated = () => {
+    clearDelegationNeeded();
+    setShowDelegationModal(false);
+    // The useDelegation hook will automatically refetch delegation status
   };
   
   // Track the view before connecting to return to it after login
@@ -173,6 +199,16 @@ function AppContent() {
           onSubmitCreator={() => setView('submit')}
           testMode={testMode}
         />
+
+        {/* Delegation Modal */}
+        {showDelegationModal && serverWalletAddress && (
+          <DelegationModal
+            isOpen={showDelegationModal}
+            serverWalletAddress={serverWalletAddress}
+            onClose={() => setShowDelegationModal(false)}
+            onDelegated={handleDelegated}
+          />
+        )}
       </div>
     </TestModeContext.Provider>
   );
