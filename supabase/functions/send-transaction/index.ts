@@ -109,14 +109,13 @@ serve(async (req) => {
     const amountValue = typeof amount === 'string' ? amount : amount.toString()
     
     // Build transaction object with proper EIP-1559 format
-    // CDP SDK expects input field, not data
+    // CDP SDK expects "input" field for calldata, not "data"
     const transaction: any = {
       to,
       value: amountValue,
     }
     
     // Add input field if data provided (for contract calls)
-    // CDP uses "input" instead of "data"
     if (data) {
       transaction.input = data
     }
