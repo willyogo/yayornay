@@ -52,15 +52,28 @@ serve(async (req) => {
     // Get request body
     const { userAddress, to, amount, currency, data } = await req.json()
 
-    if (!userAddress || !to || !amount) {
+    console.log('[send-transaction] Request received:', {
+      userAddress,
+      to,
+      amount,
+      currency,
+      hasData: !!data,
+      dataLength: data?.length,
+    })
+
+    if (!userAddress || !to || amount === undefined) {
+      const error = { error: 'userAddress, to, and amount are required' }
+      console.error('[send-transaction] Invalid request:', error)
       return new Response(
-        JSON.stringify({ error: 'userAddress, to, and amount are required' }),
+        JSON.stringify(error),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Normalize address to lowercase
     const normalizedAddress = userAddress.toLowerCase()
+
+    console.log('[send-transaction] Looking up server wallet for:', normalizedAddress)
 
     // Get wallet from database - we only need the account address
     const { data: walletRecord, error: fetchError } = await supabase
@@ -69,9 +82,17 @@ serve(async (req) => {
       .eq('user_address', normalizedAddress)
       .single()
 
+    console.log('[send-transaction] Wallet lookup result:', {
+      found: !!walletRecord,
+      error: fetchError,
+      walletAddress: walletRecord?.server_wallet_address,
+    })
+
     if (fetchError || !walletRecord) {
+      const error = { error: 'Server wallet not found for user', details: fetchError }
+      console.error('[send-transaction] Wallet not found:', error)
       return new Response(
-        JSON.stringify({ error: 'Server wallet not found for user' }),
+        JSON.stringify(error),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -106,13 +127,22 @@ serve(async (req) => {
 
     // Send transaction using CdpClient
     // CDP manages the account server-side, we just need the address
-    const txResult = await cdp.evm.sendTransaction({
-      address: walletRecord.server_wallet_address,
-      network: networkId,
-      transaction,
-    })
-
-    console.log('[send-transaction] Transaction result:', txResult)
+    let txResult
+    try {
+      txResult = await cdp.evm.sendTransaction({
+        address: walletRecord.server_wallet_address,
+        network: networkId,
+        transaction,
+      })
+      console.log('[send-transaction] CDP Transaction result:', txResult)
+    } catch (cdpError) {
+      console.error('[send-transaction] CDP sendTransaction failed:', {
+        error: cdpError,
+        message: cdpError instanceof Error ? cdpError.message : 'Unknown CDP error',
+        stack: cdpError instanceof Error ? cdpError.stack : undefined,
+      })
+      throw cdpError
+    }
 
     return new Response(
       JSON.stringify({
@@ -123,11 +153,16 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error sending transaction:', error)
+    console.error('[send-transaction] Error:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return new Response(
       JSON.stringify({ 
         error: 'Failed to send transaction', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

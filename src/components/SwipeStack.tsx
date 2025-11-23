@@ -106,13 +106,22 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
   const votedProposalIds = useMemo(() => {
     // Use voted proposals from context (optimistic updates)
-    return new Set(votedProposals.keys());
+    const ids = new Set(votedProposals.keys());
+    console.log('[SwipeStack] Voted proposal IDs:', Array.from(ids));
+    return ids;
   }, [votedProposals]);
 
-  const availableProposals = useMemo(
-    () => proposals.filter((proposal) => !votedProposalIds.has(proposal.id)),
-    [proposals, votedProposalIds]
-  );
+  const availableProposals = useMemo(() => {
+    const filtered = proposals.filter((proposal) => !votedProposalIds.has(proposal.id));
+    console.log('[SwipeStack] Filtering proposals:', {
+      totalProposals: proposals.length,
+      votedCount: votedProposalIds.size,
+      availableCount: filtered.length,
+      proposalIds: proposals.map(p => p.id).slice(0, 5), // First 5
+      votedIds: Array.from(votedProposalIds).slice(0, 5), // First 5
+    });
+    return filtered;
+  }, [proposals, votedProposalIds]);
 
   const currentProposal = availableProposals[currentIndex];
 
