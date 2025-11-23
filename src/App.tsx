@@ -9,6 +9,7 @@ import { useVoting } from './hooks/useVoting';
 import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
 import { DirectProposalPage } from './components/DirectProposalPage';
+import { ServerWalletDisplay } from './components/ServerWalletDisplay';
 import { AppView } from './types/view';
 
 // Get test mode from URL query parameter
@@ -89,6 +90,15 @@ function App() {
           <SubmitPage onSelectView={setView} currentView={view} />
         ) : view === 'propose' ? (
           <DirectProposalPage onSelectView={setView} currentView={view} />
+        ) : view === 'wallet' ? (
+          <div className="min-h-screen bg-gray-50 flex flex-col">
+            <AppHeader view={view} onChange={setView} />
+            <main className="flex-1 overflow-y-auto">
+              <div className="max-w-2xl mx-auto px-4 py-8">
+                <ServerWalletDisplay />
+              </div>
+            </main>
+          </div>
         ) : (
           <LandingPage onBecomeVoter={() => setView('auction')} />
         )}
@@ -131,6 +141,21 @@ function App() {
     return (
       <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
         <DirectProposalPage onSelectView={setView} currentView={view} />
+      </TestModeContext.Provider>
+    );
+  }
+
+  if (view === 'wallet') {
+    return (
+      <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+          <AppHeader view={view} onChange={setView} />
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-2xl mx-auto px-4 py-8">
+              <ServerWalletDisplay />
+            </div>
+          </main>
+        </div>
       </TestModeContext.Provider>
     );
   }

@@ -1,1 +1,1 @@
-export type AppView = 'landing' | 'auction' | 'submit' | 'propose';
+export type AppView = 'landing' | 'auction' | 'submit' | 'propose' | 'wallet';

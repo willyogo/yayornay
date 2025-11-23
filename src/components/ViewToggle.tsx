@@ -58,6 +58,15 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
           </button>
         </>
       )}
+      <div className="neo-toggle-divider" aria-hidden="true" />
+      <button
+        type="button"
+        onClick={() => onChange('wallet')}
+        className={`neo-toggle-option ${value === 'wallet' ? 'active' : ''}`}
+        aria-pressed={value === 'wallet'}
+      >
+        Wallet
+      </button>
     </div>
   );
 }

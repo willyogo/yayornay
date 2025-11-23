@@ -1,25 +1,29 @@
 // Mock CDP SDK for testing
 import { vi } from 'vitest';
 
-export const mockWallet = {
-  getId: vi.fn(() => 'mock-wallet-id'),
-  getDefaultAddress: vi.fn(() => ({
-    address: '0x' + '0'.repeat(40),
-  })),
-  serialize: vi.fn(() => ({
-    id: 'mock-wallet-id',
-    networkId: 'base-sepolia',
-    data: 'mock-serialized-data',
-  })),
-  send: vi.fn(() => ({
-    hash: '0x' + '1'.repeat(64),
-    status: 'success',
-  })),
+export const mockEvmAccount = {
+  address: '0x' + '0'.repeat(40),
+  id: 'mock-account-id',
 };
 
-export const mockWalletCreate = vi.fn(() => Promise.resolve(mockWallet));
-export const mockWalletImport = vi.fn(() => Promise.resolve(mockWallet));
+export const mockCreateAccount = vi.fn(() => Promise.resolve(mockEvmAccount));
 
+export const mockSendTransaction = vi.fn(() => 
+  Promise.resolve({
+    transactionHash: '0x' + '1'.repeat(64),
+  })
+);
+
+export const mockCdpClient = {
+  evm: {
+    createAccount: mockCreateAccount,
+    sendTransaction: mockSendTransaction,
+  },
+};
+
+export const mockCdpClientConstructor = vi.fn(() => mockCdpClient);
+
+// For backward compatibility with old tests
 export const mockCoinbaseSDK = {
   configure: vi.fn(),
   configureFromJson: vi.fn(),
@@ -28,8 +32,8 @@ export const mockCoinbaseSDK = {
     BaseMainnet: 'base-mainnet',
   },
   Wallet: {
-    create: mockWalletCreate,
-    import: mockWalletImport,
+    create: mockCreateAccount, // Map to new API for compatibility
+    import: vi.fn(() => Promise.resolve(mockEvmAccount)),
   },
 };
 
