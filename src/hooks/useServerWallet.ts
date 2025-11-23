@@ -6,9 +6,15 @@ import { supabase } from '../lib/supabase';
  * Hook to manage server wallet for the connected user
  * 
  * Automatically:
- * - Checks if user has a server wallet
- * - Creates one if needed via Edge Function
+ * - Queries database directly to check if user has a server wallet
+ * - Creates one via Edge Function if wallet doesn't exist
  * - Caches the wallet address
+ * 
+ * Flow:
+ * 1. Query Supabase database directly (faster than Edge Function)
+ * 2. If wallet exists, use it
+ * 3. If wallet doesn't exist (404), call create-wallet Edge Function
+ * 4. Cache the wallet address for subsequent renders
  */
 export interface ServerWalletError {
   message: string;
@@ -43,48 +49,57 @@ export function useServerWallet() {
       setErrorDetails(null);
       
       try {
-        const requestBody = { userAddress: address };
+        const normalizedAddress = address.toLowerCase();
         console.log('[useServerWallet] Fetching wallet for address:', address);
         console.log('[useServerWallet] Supabase URL:', supabase.supabaseUrl);
         
-        // First, try to get existing wallet
-        const { data: existingWallet, error: getError } = await supabase.functions.invoke('get-wallet', {
-          body: requestBody,
+        // First, query the database directly (faster than calling Edge Function)
+        const { data: walletRecord, error: dbError } = await supabase
+          .from('server_wallets')
+          .select('server_wallet_address, server_wallet_id, network_id')
+          .eq('user_address', normalizedAddress)
+          .single();
+
+        console.log('[useServerWallet] Database query result:', { 
+          data: walletRecord, 
+          error: dbError,
+          errorCode: dbError?.code,
         });
 
-        console.log('[useServerWallet] get-wallet response:', { 
-          data: existingWallet, 
-          error: getError,
-          status: (getError as any)?.status,
-        });
-
-        if (existingWallet && !getError) {
-          console.log('[useServerWallet] Found existing wallet:', existingWallet.serverWalletAddress);
-          setServerWalletAddress(existingWallet.serverWalletAddress);
-          setWalletId(existingWallet.walletId);
+        // If wallet exists in database, use it
+        if (walletRecord && !dbError) {
+          console.log('[useServerWallet] Found existing wallet in database:', walletRecord.server_wallet_address);
+          setServerWalletAddress(walletRecord.server_wallet_address);
+          setWalletId(walletRecord.server_wallet_id);
           setLoading(false);
           return;
         }
 
-        // Check if get-wallet returned an error
-        if (getError) {
+        // Check if database error is "not found" (PGRST116 = no rows returned)
+        // This is expected for new users - we'll create a wallet
+        const isNotFound = dbError?.code === 'PGRST116' || dbError?.message?.includes('No rows');
+        
+        if (dbError && !isNotFound) {
+          // This is a real database error, report it
           const errorInfo: ServerWalletError = {
-            message: getError.message || 'Failed to get wallet',
-            statusCode: (getError as any)?.status,
-            errorDetails: getError,
-            functionName: 'get-wallet',
-            requestBody,
+            message: dbError.message || 'Failed to query wallet from database',
+            errorDetails: dbError,
+            functionName: 'database-query',
+            requestBody: { userAddress: address },
             timestamp: new Date().toISOString(),
           };
-          console.error('[useServerWallet] get-wallet error:', errorInfo);
+          console.error('[useServerWallet] Database query error:', errorInfo);
           setErrorDetails(errorInfo);
           setError(errorInfo.message);
+          setLoading(false);
+          return; // Don't try to create wallet if there's a real database error
         }
 
-        // If no wallet exists, create one
-        console.log('[useServerWallet] No existing wallet found, creating new one...');
+        // Wallet doesn't exist - create one via Edge Function
+        // This is the expected flow for new users
+        console.log('[useServerWallet] Wallet not found in database - creating new wallet via Edge Function...');
         const { data: newWallet, error: createError } = await supabase.functions.invoke('create-wallet', {
-          body: requestBody,
+          body: { userAddress: address },
         });
 
         console.log('[useServerWallet] create-wallet response:', { 
