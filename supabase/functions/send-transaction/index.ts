@@ -6,6 +6,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { CdpClient } from 'npm:@coinbase/cdp-sdk@latest'
+import { getCdpNetwork, CDP_NETWORKS } from '../_shared/constants.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -75,7 +76,12 @@ serve(async (req) => {
       )
     }
 
-    const networkId = walletRecord.network_id || 'base-sepolia'
+    // Use network from wallet record, or fall back to constants-based detection
+    const networkId = walletRecord.network_id || getCdpNetwork()
+    console.log('[send-transaction] Using network:', networkId, {
+      fromWalletRecord: walletRecord.network_id,
+      detected: getCdpNetwork(),
+    })
     
     // Convert amount to wei if currency is ETH (amount should be in wei already, but ensure it's a string)
     // For other currencies, amount should be in the smallest unit
@@ -92,6 +98,12 @@ serve(async (req) => {
       transaction.data = data
     }
 
+    console.log('[send-transaction] Sending transaction:', {
+      address: walletRecord.server_wallet_address,
+      network: networkId,
+      transaction,
+    })
+
     // Send transaction using CdpClient
     // CDP manages the account server-side, we just need the address
     const txResult = await cdp.evm.sendTransaction({
@@ -99,6 +111,8 @@ serve(async (req) => {
       network: networkId,
       transaction,
     })
+
+    console.log('[send-transaction] Transaction result:', txResult)
 
     return new Response(
       JSON.stringify({

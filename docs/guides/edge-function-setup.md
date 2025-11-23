@@ -53,8 +53,8 @@ This script will:
    VITE_CDP_API_SECRET=your-cdp-api-key-secret
    CDP_WALLET_SECRET=your-cdp-wallet-secret
 
-   # CDP Network
-   CDP_NETWORK_ID=base-sepolia
+   # CDP Network (optional - auto-detected: Sepolia for local dev, Mainnet for production)
+   # CDP_NETWORK_ID=base-sepolia  # Uncomment to override auto-detection
    ```
 
 4. **Start Edge Functions**:
@@ -73,7 +73,7 @@ Edge Functions need these environment variables:
 | `VITE_CDP_API_KEY` | CDP API Key ID | Your CDP API key name |
 | `VITE_CDP_API_SECRET` | CDP API Key Secret | Your CDP API key secret |
 | `CDP_WALLET_SECRET` | CDP Wallet Secret | Your CDP wallet secret (required) |
-| `CDP_NETWORK_ID` | Network to use | `base-sepolia` or `base-mainnet` |
+| `CDP_NETWORK_ID` | Network to use (optional) | Auto-detected: `base-sepolia` for local dev, `base` for production. Override by setting this variable. |
 
 ## Verifying Setup
 

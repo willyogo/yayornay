@@ -8,6 +8,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Import CDP SDK - using npm: specifier for Deno compatibility
 import { CdpClient } from 'npm:@coinbase/cdp-sdk@latest'
+import { getCdpNetwork } from '../_shared/constants.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -84,8 +85,13 @@ serve(async (req) => {
       )
     }
 
-    // Get network from environment variable (defaults to testnet for local dev)
-    const networkId = Deno.env.get('CDP_NETWORK_ID') || 'base-sepolia'
+    // Get network from constants (respects CDP_NETWORK_ID env var, defaults to mainnet)
+    const networkId = getCdpNetwork()
+    console.log('[create-wallet] Detected network:', networkId, {
+      envVar: Deno.env.get('CDP_NETWORK_ID'),
+      supabaseUrl: Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL'),
+      environment: Deno.env.get('ENVIRONMENT') || Deno.env.get('NODE_ENV'),
+    })
     
     // Create new EVM account using CdpClient
     // CDP manages the account server-side, we just need to store the address
