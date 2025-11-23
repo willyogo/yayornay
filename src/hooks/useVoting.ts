@@ -58,6 +58,7 @@ export function useVoting() {
         voteType,
         support,
         serverWallet: serverWalletAddress,
+        governor: CONTRACTS.GOVERNOR,
       });
 
       // Encode the castVote function call
@@ -67,17 +68,37 @@ export function useVoting() {
         args: [proposalIdBytes32, BigInt(support)],
       });
 
+      console.log('[Voting] Encoded transaction data:', {
+        data,
+        dataLength: data.length,
+      });
+
+      const requestBody = {
+        userAddress: address,
+        to: CONTRACTS.GOVERNOR,
+        amount: '0', // No ETH being sent, just a contract call
+        data: data,
+      };
+
+      console.log('[Voting] Calling send-transaction edge function with:', requestBody);
+
       // Call the send-transaction edge function
       const response = await supabase.functions.invoke('send-transaction', {
-        body: {
-          userAddress: address,
-          to: CONTRACTS.GOVERNOR,
-          amount: '0', // No ETH being sent, just a contract call
-          data: data,
-        },
+        body: requestBody,
+      });
+
+      console.log('[Voting] send-transaction response:', {
+        data: response.data,
+        error: response.error,
+        status: (response as any).status,
       });
 
       if (response.error) {
+        console.error('[Voting] Edge function error:', {
+          message: response.error.message,
+          context: (response.error as any).context,
+          details: response.error,
+        });
         throw new Error(response.error.message || 'Failed to submit vote via server wallet');
       }
 

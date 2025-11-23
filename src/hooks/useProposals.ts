@@ -194,17 +194,22 @@ export function useProposals(testMode: boolean = false, userAddress?: string) {
           console.warn('Failed to fetch latest proposal timestamp:', e);
         }
 
+        console.log('[useProposals] Fetching proposals, userAddress:', userAddress);
+
         if (userAddress) {
           // Fetch only proposals the user hasn't voted on
           activeProposals = await fetchUnvotedProposalsForUser(userAddress);
+          console.log('[useProposals] Fetched unvoted proposals for user:', activeProposals.length);
         } else {
           // Fetch all active proposals
           activeProposals = await fetchActiveProposalsFromSubgraph();
+          console.log('[useProposals] Fetched all active proposals:', activeProposals.length);
         }
 
         // Always fetch pending proposals
         try {
           pendingProposals = await fetchPendingProposalsFromSubgraph();
+          console.log('[useProposals] Fetched pending proposals:', pendingProposals.length);
         } catch (pendingErr) {
           console.warn('Failed to fetch pending proposals:', pendingErr);
           // Continue with just active proposals if pending fetch fails
