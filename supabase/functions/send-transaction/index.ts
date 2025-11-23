@@ -136,50 +136,71 @@ serve(async (req) => {
 
     // Use Smart Account sendUserOperation for automatic Paymaster support
     // Smart Accounts on Base automatically use CDP Paymaster
-    console.log('[send-transaction] Using Smart Account for gasless transaction')
+    console.log('[send-transaction] Checking wallet type:', {
+      hasWalletId: !!walletRecord.server_wallet_id,
+      walletId: walletRecord.server_wallet_id,
+      address: walletRecord.server_wallet_address,
+    })
     
     let txResult
     try {
-      // Get the Smart Account by wallet ID (stored as server_wallet_id)
+      // Check if this is a Smart Account (new) or EOA (old)
       const smartAccountName = walletRecord.server_wallet_id
-      const ownerName = smartAccountName.replace('yaynay-smart-', 'yaynay-owner-')
       
-      console.log('[send-transaction] Loading Smart Account:', { smartAccountName, ownerName })
+      if (!smartAccountName || !smartAccountName.startsWith('yaynay-')) {
+        // This is an old EOA wallet - use regular sendTransaction
+        console.log('[send-transaction] Using EOA (old wallet) - requires gas funding')
+        
+        txResult = await cdp.evm.sendTransaction({
+          address: walletRecord.server_wallet_address,
+          network: networkId,
+          transaction,
+        })
+        
+        console.log('[send-transaction] EOA transaction result:', txResult)
+      } else {
+        // This is a Smart Account - use sendUserOperation for gasless transaction
+        console.log('[send-transaction] Using Smart Account for gasless transaction')
+        
+        const ownerName = smartAccountName.replace('yaynay-smart-', 'yaynay-owner-')
       
-      const owner = await cdp.evm.getOrCreateAccount({ name: ownerName })
-      const smartAccount = await cdp.evm.getOrCreateSmartAccount({
-        name: smartAccountName,
-        owner,
-      })
-      
-      // Convert transaction to user operation call format
-      const calls = [{
-        to: transaction.to,
-        value: BigInt(transaction.value),
-        data: transaction.data || '0x',
-      }]
-      
-      console.log('[send-transaction] Sending user operation with calls:', calls)
-      
-      // Send user operation - automatically uses CDP Paymaster on Base!
-      const userOperation = await smartAccount.sendUserOperation({
-        network: networkId,
-        calls,
-      })
-      
-      console.log('[send-transaction] User operation sent:', userOperation.hash)
-      
-      // Wait for confirmation
-      const receipt = await smartAccount.waitForUserOperation(userOperation)
-      
-      console.log('[send-transaction] ✅ Transaction confirmed (gasless via Paymaster):', receipt)
-      
-      txResult = {
-        transactionHash: receipt.transactionHash || userOperation.hash,
-        userOperationHash: userOperation.hash,
+        console.log('[send-transaction] Loading Smart Account:', { smartAccountName, ownerName })
+        
+        const owner = await cdp.evm.getOrCreateAccount({ name: ownerName })
+        const smartAccount = await cdp.evm.getOrCreateSmartAccount({
+          name: smartAccountName,
+          owner,
+        })
+        
+        // Convert transaction to user operation call format
+        const calls = [{
+          to: transaction.to,
+          value: BigInt(transaction.value),
+          data: transaction.data || '0x',
+        }]
+        
+        console.log('[send-transaction] Sending user operation with calls:', calls)
+        
+        // Send user operation - automatically uses CDP Paymaster on Base!
+        const userOperation = await smartAccount.sendUserOperation({
+          network: networkId,
+          calls,
+        })
+        
+        console.log('[send-transaction] User operation sent:', userOperation.hash)
+        
+        // Wait for confirmation
+        const receipt = await smartAccount.waitForUserOperation(userOperation)
+        
+        console.log('[send-transaction] ✅ Transaction confirmed (gasless via Paymaster):', receipt)
+        
+        txResult = {
+          transactionHash: receipt.transactionHash || userOperation.hash,
+          userOperationHash: userOperation.hash,
+        }
       }
     } catch (cdpError) {
-      console.error('[send-transaction] Smart Account operation failed:', {
+      console.error('[send-transaction] Transaction failed:', {
         error: cdpError,
         message: cdpError instanceof Error ? cdpError.message : 'Unknown CDP error',
         stack: cdpError instanceof Error ? cdpError.stack : undefined,
