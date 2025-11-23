@@ -47,6 +47,8 @@ function AppContent() {
   // Modal state
   const [showNoVotesModal, setShowNoVotesModal] = useState(false);
   const [showDelegationModal, setShowDelegationModal] = useState(false);
+  // Store pending vote to execute after delegation
+  const [pendingVote, setPendingVote] = useState<{ proposalId: string; voteType: 'for' | 'against' | 'abstain' } | null>(null);
 
   // Store pending vote to execute after delegation
   const [pendingVote, setPendingVote] = useState<{ proposalId: string; voteType: 'for' | 'against' | 'abstain' } | null>(null);
