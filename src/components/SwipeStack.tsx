@@ -5,7 +5,7 @@ import { Proposal } from '../lib/supabase';
 import { ProposalCard, FlipState } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
 import { prefetchZoraCoinData } from '../hooks/useZoraCoin';
-import { getQueuedVotesForVoter } from '../lib/voteQueue';
+import { useVotedProposals } from '../contexts/VotedProposalsContext';
 
 interface SwipeStackProps {
   proposals: Proposal[];
@@ -34,6 +34,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   const animationLock = useRef(false);
   const [timeUntilNext, setTimeUntilNext] = useState(NEXT_PROPOSAL_DELAY_MS);
   const { address } = useAccount();
+  const { votedProposals } = useVotedProposals();
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // Initialize audio context on first user interaction
@@ -105,10 +106,9 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   };
 
   const votedProposalIds = useMemo(() => {
-    if (!address) return new Set<string>();
-    const votes = getQueuedVotesForVoter(address);
-    return new Set(votes.map((vote) => vote.proposalId));
-  }, [address, currentIndex, proposals]);
+    // Use voted proposals from context (optimistic updates)
+    return new Set(votedProposals.keys());
+  }, [votedProposals]);
 
   const availableProposals = useMemo(
     () => proposals.filter((proposal) => !votedProposalIds.has(proposal.id)),

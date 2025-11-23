@@ -11,6 +11,7 @@ import { SubmitPage } from './components/SubmitPage';
 import { DirectProposalPage } from './components/DirectProposalPage';
 import { ServerWalletDisplay } from './components/ServerWalletDisplay';
 import { AppView } from './types/view';
+import { VotedProposalsProvider, useVotedProposals } from './contexts/VotedProposalsContext';
 
 // Get test mode from URL query parameter
 const getTestModeFromURL = (): boolean => {
@@ -28,21 +29,22 @@ const TestModeContext = createContext<{
 
 export const useTestMode = () => useContext(TestModeContext);
 
-function App() {
+function AppContent() {
   const { isConnected, address } = useAccount();
   const [testMode] = useState(() => getTestModeFromURL());
   const [view, setView] = useState<AppView>('landing');
   // Pass user address to only fetch proposals they haven't voted on
-  const { proposals, loading, refetch } = useProposals(testMode, address);
+  const { proposals, loading } = useProposals(testMode, address);
   const { submitVote } = useVoting();
+  const { addVotedProposal } = useVotedProposals();
 
-  // Wrap submitVote to refetch proposals after voting
+  // Wrap submitVote to track votes immediately in context
   const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
+    // Add to voted proposals context immediately (optimistic update)
+    addVotedProposal(proposalId, voteType);
+
+    // Submit vote in background (no need to refetch immediately)
     await submitVote(proposalId, voteType);
-    // Refetch proposals after successful vote
-    // Note: There might be a delay before the subgraph indexes the vote,
-    // but the UI will remove the card anyway via the swipe animation
-    setTimeout(() => refetch(), 2000);
   };
   
   // Track the view before connecting to return to it after login
@@ -173,6 +175,14 @@ function App() {
         />
       </div>
     </TestModeContext.Provider>
+  );
+}
+
+function App() {
+  return (
+    <VotedProposalsProvider>
+      <AppContent />
+    </VotedProposalsProvider>
   );
 }
 
