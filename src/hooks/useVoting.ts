@@ -4,6 +4,7 @@ import { useAccount } from 'wagmi';
 import { queueVote, getQueuedVotesForVoter, QueuedVote } from '../lib/voteQueue';
 import { CONTRACTS, GovernorABI } from '../config/contracts';
 import { useSponsoredTransaction } from './useSponsoredTransaction';
+import { useDelegation } from './useDelegation';
 
 export type VoteType = 'for' | 'against' | 'abstain';
 
@@ -23,7 +24,9 @@ function voteTypeToSupport(voteType: VoteType): 0 | 1 | 2 {
 export function useVoting() {
   const { address } = useAccount();
   const sponsoredTx = useSponsoredTransaction();
+  const { isDelegated, loading: delegationLoading, serverWalletAddress } = useDelegation();
   const [error, setError] = useState<string | null>(null);
+  const [needsDelegation, setNeedsDelegation] = useState(false);
 
   /**
    * Submit a vote on-chain using the Nouns Builder Governor contract
@@ -34,7 +37,14 @@ export function useVoting() {
       throw new Error('Wallet not connected');
     }
 
+    // Check if delegation is needed (only check if not already delegated)
+    if (!delegationLoading && isDelegated === false && serverWalletAddress) {
+      setNeedsDelegation(true);
+      throw new Error('DELEGATION_REQUIRED');
+    }
+
     setError(null);
+    setNeedsDelegation(false);
 
     try {
       const support = voteTypeToSupport(voteType);
@@ -114,6 +124,11 @@ export function useVoting() {
     error: error || sponsoredTx.error,
     queueVoteForLater,
     submitQueuedVote,
-    getQueuedVotes
+    getQueuedVotes,
+    needsDelegation,
+    isDelegated,
+    delegationLoading,
+    serverWalletAddress,
+    clearDelegationNeeded: () => setNeedsDelegation(false),
   };
 }
