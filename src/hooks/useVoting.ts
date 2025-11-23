@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { useAccount } from 'wagmi';
 import { queueVote, getQueuedVotesForVoter, QueuedVote } from '../lib/voteQueue';
 import { CONTRACTS, GovernorABI } from '../config/contracts';
-import { useSponsoredTransaction } from './useSponsoredTransaction';
+import { useServerWallet } from './useServerWallet';
+import { encodeFunctionData } from 'viem';
 
 export type VoteType = 'for' | 'against' | 'abstain';
 
@@ -22,19 +23,25 @@ function voteTypeToSupport(voteType: VoteType): 0 | 1 | 2 {
 
 export function useVoting() {
   const { address } = useAccount();
-  const sponsoredTx = useSponsoredTransaction();
+  const { sendTransaction, isSending, serverWalletAddress } = useServerWallet();
   const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   /**
    * Submit a vote on-chain using the Nouns Builder Governor contract
-   * Gas is sponsored by Coinbase Paymaster for Smart Wallet users
+   * Now using custodial server wallet for instant, gasless voting
    */
   const submitVote = async (proposalId: string, voteType: VoteType) => {
     if (!address) {
       throw new Error('Wallet not connected');
     }
 
+    if (!serverWalletAddress) {
+      throw new Error('Server wallet not initialized');
+    }
+
     setError(null);
+    setTxHash(null);
 
     try {
       const support = voteTypeToSupport(voteType);
@@ -48,19 +55,28 @@ export function useVoting() {
         proposalIdBytes32 = `0x${hex}` as `0x${string}`;
       }
 
-      console.log('[Voting] Submitting sponsored vote:', {
+      console.log('[Voting] Submitting vote via server wallet:', {
         proposalId: proposalIdBytes32,
         voteType,
         support,
+        serverWallet: serverWalletAddress,
       });
 
-      // Execute sponsored transaction
-      const { hash } = await sponsoredTx.execute({
-        address: CONTRACTS.GOVERNOR,
+      // Encode the castVote function call
+      const data = encodeFunctionData({
         abi: GovernorABI,
         functionName: 'castVote',
         args: [proposalIdBytes32, BigInt(support)],
       });
+
+      // Send transaction via server wallet (instant, no user confirmation)
+      const { hash } = await sendTransaction({
+        to: CONTRACTS.GOVERNOR,
+        data,
+        amount: '0',
+      });
+
+      setTxHash(hash);
 
       // Store vote in Supabase for analytics/UI purposes
       try {
@@ -109,9 +125,9 @@ export function useVoting() {
 
   return {
     submitVote,
-    submitting: sponsoredTx.isSubmitting,
-    txHash: sponsoredTx.txHash,
-    error: error || sponsoredTx.error,
+    submitting: isSending,
+    txHash,
+    error,
     queueVoteForLater,
     submitQueuedVote,
     getQueuedVotes
