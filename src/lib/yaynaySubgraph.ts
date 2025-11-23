@@ -1,7 +1,7 @@
 import { CONTRACTS } from '../config/contracts';
 
 const DEFAULT_YAYNAY_SUBGRAPH_URL =
-  'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
+  'https://gateway.thegraph.com/api/subgraphs/id/Fr7FVqJYVuZRLudFVPr9mAqspPosVawkXrejKPNarQks';
 
 const PROPOSALS_QUERY = `
 query proposals($where: Proposal_filter, $first: Int!, $skip: Int) {
@@ -106,10 +106,20 @@ const getSubgraphEndpoint = () =>
 
 async function gql<T>(variables: Record<string, unknown>, query: string = PROPOSALS_QUERY): Promise<T> {
   const endpoint = getSubgraphEndpoint();
+  const apiKey = import.meta.env.VITE_THE_GRAPH_API_KEY;
+
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+
+  // Add Authorization header if API key is provided
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
 
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({
       query,
       variables,
