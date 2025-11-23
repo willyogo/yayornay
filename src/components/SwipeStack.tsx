@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { X, Heart, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
-import { ProposalCard } from './ProposalCard';
+import { ProposalCard, FlipState } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
 import { prefetchZoraCoinData } from '../hooks/useZoraCoin';
 import { getQueuedVotesForVoter } from '../lib/voteQueue';
@@ -26,6 +26,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   const [activeVote, setActiveVote] = useState<VoteType | null>(null);
   const [voteStatus, setVoteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [cardFlipState, setCardFlipState] = useState<FlipState>('front');
   const cardRef = useRef<HTMLDivElement>(null);
   const startPos = useRef({ x: 0, y: 0 });
   const activePointerId = useRef<number | null>(null);
@@ -176,6 +177,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
       setTransitionEnabled(false);
       setCurrentIndex((prev) => prev + 1);
       resetCardPosition();
+      setCardFlipState('front'); // Reset flip state for next card
       setIsAnimatingOut(false);
       setIsPromotingNext(false);
       setVoteStatus('idle');
@@ -197,6 +199,9 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
     // Don't allow dragging on pending proposals
     if (currentProposal?.status === 'pending') return;
+
+    // Don't allow dragging when card is flipped
+    if (cardFlipState !== 'front') return;
 
     activePointerId.current = pointerId;
     activeInputType.current = type;
@@ -425,7 +430,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
             <div
               key={proposal.id}
               ref={isTopCard ? cardRef : undefined}
-              className={`${isTopCard ? 'relative z-10 w-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing' : 'absolute top-0 left-0 right-0 z-0 w-full pointer-events-none'}`}
+              className={`${isTopCard ? `relative z-10 w-full transition-transform will-change-transform touch-none select-none ${cardFlipState === 'front' ? 'cursor-grab active:cursor-grabbing' : ''}` : 'absolute top-0 left-0 right-0 z-0 w-full pointer-events-none'}`}
               style={{
                 transform,
                 transition,
@@ -452,8 +457,11 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
                   : undefined
               }
             >
-              <div className="card-content relative w-full cursor-grab active:cursor-grabbing">
-                <ProposalCard proposal={proposal} />
+              <div className={`card-content relative w-full ${cardFlipState === 'front' ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+                <ProposalCard
+                  proposal={proposal}
+                  onFlipStateChange={isTopCard ? setCardFlipState : undefined}
+                />
               </div>
 
               {isTopCard && dragOffset.x > 40 && (

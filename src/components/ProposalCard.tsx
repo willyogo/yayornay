@@ -9,11 +9,12 @@ import { StatsGrid } from './StatsGrid';
 
 interface ProposalCardProps {
   proposal: Proposal;
+  onFlipStateChange?: (state: FlipState) => void;
 }
 
-type FlipState = 'front' | 'feed' | 'profile';
+export type FlipState = 'front' | 'feed' | 'profile';
 
-export function ProposalCard({ proposal }: ProposalCardProps) {
+export function ProposalCard({ proposal, onFlipStateChange }: ProposalCardProps) {
   const [imageError, setImageError] = useState(false);
   const [flipState, setFlipState] = useState<FlipState>('front');
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
@@ -154,6 +155,11 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
     };
   }, [flipState, hasMoreContentCoins, loadMoreContentCoins]);
 
+  // Notify parent of flip state changes
+  useEffect(() => {
+    onFlipStateChange?.(flipState);
+  }, [flipState, onFlipStateChange]);
+
   const rotation = flipState === 'front' ? 0 : flipState === 'feed' ? 180 : -180;
   const creatorLabel =
     proposal.creator_username ||
@@ -162,7 +168,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
 
   return (
     <div
-      className="relative w-full cursor-grab active:cursor-grabbing"
+      className="relative w-full"
       style={{ opacity: 1, filter: 'none' }}
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
