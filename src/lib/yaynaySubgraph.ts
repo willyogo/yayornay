@@ -111,14 +111,14 @@ const filterAgentProposals = (proposals: SubgraphProposal[]) =>
     (proposal) => proposal.proposer?.toLowerCase() === AGENT_PROPOSER_ADDRESS
   );
 
-async function gql<T>(variables: Record<string, unknown>): Promise<T> {
+async function gql<T>(variables: Record<string, unknown>, query: string = PROPOSALS_QUERY): Promise<T> {
   const endpoint = getSubgraphEndpoint();
 
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      query: PROPOSALS_QUERY,
+      query,
       variables,
     }),
     cache: 'no-store',
@@ -135,6 +135,40 @@ async function gql<T>(variables: Record<string, unknown>): Promise<T> {
   }
 
   return json.data as T;
+}
+
+
+/**
+ * Fetch the timestamp of the most recently created proposal
+ */
+export async function fetchLatestProposalTimestamp(): Promise<number | null> {
+  const where = {
+    dao_: {
+      governorAddress: CONTRACTS.GOVERNOR.toLowerCase(),
+    },
+  };
+
+  try {
+    // Reuse the standard PROPOSALS_QUERY to ensure compatibility
+    const data = await gql<{ proposals: SubgraphProposal[] }>({ 
+      where,
+      first: 1,
+      skip: 0
+    });
+
+    // Filter by AI agent address and get the latest
+    const filtered = filterAgentProposals(data.proposals || []);
+    
+    if (filtered.length > 0) {
+      const p = filtered[0];
+      // Return voteStart if available, otherwise timeCreated
+      return Number(p.voteStart || p.timeCreated);
+    }
+    return null;
+  } catch (error) {
+    console.warn('Failed to fetch latest proposal timestamp:', error);
+    return null;
+  }
 }
 
 export async function fetchActiveProposalsFromSubgraph(

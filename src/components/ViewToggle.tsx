@@ -17,6 +17,9 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
   // Show propose tab only in development environment
   const showProposeTab = import.meta.env.DEV && canCreateProposal;
 
+  // Show wallet tab only in development environment
+  const showWalletTab = import.meta.env.DEV;
+
   return (
     <div className={wrapperClass} role="group" aria-label="Choose app view">
       <button
@@ -55,6 +58,19 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
             aria-pressed={value === 'propose'}
           >
             Propose
+          </button>
+        </>
+      )}
+      {showWalletTab && (
+        <>
+          <div className="neo-toggle-divider" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => onChange('wallet')}
+            className={`neo-toggle-option ${value === 'wallet' ? 'active' : ''}`}
+            aria-pressed={value === 'wallet'}
+          >
+            Wallet
           </button>
         </>
       )}

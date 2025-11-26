@@ -6,14 +6,16 @@ import { formatCurrency, calculate24hChange } from '../lib/zora';
 import { EnsName } from './EnsName';
 import { CountdownTimer } from './CountdownTimer';
 import { StatsGrid } from './StatsGrid';
+import { CardSkeleton } from './CardSkeleton';
 
 interface ProposalCardProps {
   proposal: Proposal;
+  onFlipStateChange?: (state: FlipState) => void;
 }
 
-type FlipState = 'front' | 'feed' | 'profile';
+export type FlipState = 'front' | 'feed' | 'profile';
 
-export function ProposalCard({ proposal }: ProposalCardProps) {
+export function ProposalCard({ proposal, onFlipStateChange }: ProposalCardProps) {
   const [imageError, setImageError] = useState(false);
   const [flipState, setFlipState] = useState<FlipState>('front');
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
@@ -23,6 +25,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
   const {
     coinData,
     loading,
+    error,
     contentCoins,
     hasMoreContentCoins,
     loadMoreContentCoins,
@@ -154,6 +157,11 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
     };
   }, [flipState, hasMoreContentCoins, loadMoreContentCoins]);
 
+  // Notify parent of flip state changes
+  useEffect(() => {
+    onFlipStateChange?.(flipState);
+  }, [flipState, onFlipStateChange]);
+
   const rotation = flipState === 'front' ? 0 : flipState === 'feed' ? 180 : -180;
   const creatorLabel =
     proposal.creator_username ||
@@ -162,7 +170,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
 
   return (
     <div
-      className="relative w-full cursor-grab active:cursor-grabbing"
+      className="relative w-full"
       style={{ opacity: 1, filter: 'none' }}
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
@@ -181,7 +189,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
               }}
             >
               <div className="px-6 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors">
-                <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
+                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200 bg-white flex-shrink-0">
                   <img
                     src={getAvatarUrl(proposal.creator_username || proposal.creator_address)}
                     alt={proposal.creator_username || 'Creator'}
@@ -192,16 +200,10 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
-                    {displayData.displayName || proposal.creator_username || (
+                    ${displayData.displayName || proposal.creator_username || (
                       <EnsName address={proposal.creator_address} className="text-2xl font-bold text-gray-900" />
                     )}
                   </h2>
-                  {coinData && (
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {displayData.holders} holders
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -280,13 +282,9 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                   </div>
                 );})}
               </div>
-
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-100/70 z-30">
-                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
             </div>
+
+            {(loading || (!coinData && !error)) && <CardSkeleton />}
           </div>
 
           <div

@@ -1,16 +1,14 @@
 // @ts-nocheck
 // Supabase Edge Function to create a server wallet for a user
-// This function securely creates a CDP wallet server-side
+// This function securely creates a CDP account server-side using CdpClient
 // Note: This file runs in Deno, not Node.js, so TypeScript checking is disabled
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // Import CDP SDK - using npm: specifier for Deno compatibility
-import { Coinbase, Wallet } from 'npm:@coinbase/coinbase-sdk@latest'
-
-// Import encryption utilities
-import { encryptWalletData, getEncryptionKey } from '../_shared/crypto.ts'
+import { CdpClient } from 'npm:@coinbase/cdp-sdk@latest'
+import { getCdpNetwork } from '../_shared/constants.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,16 +23,17 @@ serve(async (req) => {
 
   try {
     // Get environment variables
-    const cdpApiKeyName = Deno.env.get('VITE_CDP_API_KEY')
-    const cdpApiKeyPrivateKey = Deno.env.get('VITE_CDP_API_SECRET')
+    const cdpApiKeyId = Deno.env.get('VITE_CDP_API_KEY') || Deno.env.get('CDP_API_KEY_ID')
+    const cdpApiKeySecret = Deno.env.get('VITE_CDP_API_SECRET') || Deno.env.get('CDP_API_KEY_SECRET')
+    const cdpWalletSecret = Deno.env.get('CDP_WALLET_SECRET') || Deno.env.get('VITE_CDP_WALLET_SECRET')
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('VITE_SUPABASE_ANON_KEY')
 
-
-    if (!cdpApiKeyName || !cdpApiKeyPrivateKey) {
+    if (!cdpApiKeyId || !cdpApiKeySecret || !cdpWalletSecret) {
       const missing = []
-      if (!cdpApiKeyName) missing.push('VITE_CDP_API_KEY')
-      if (!cdpApiKeyPrivateKey) missing.push('VITE_CDP_API_SECRET')
+      if (!cdpApiKeyId) missing.push('VITE_CDP_API_KEY or CDP_API_KEY_ID')
+      if (!cdpApiKeySecret) missing.push('VITE_CDP_API_SECRET or CDP_API_KEY_SECRET')
+      if (!cdpWalletSecret) missing.push('CDP_WALLET_SECRET or VITE_CDP_WALLET_SECRET')
       throw new Error(`Missing CDP API credentials: ${missing.join(', ')}`)
     }
 
@@ -45,10 +44,11 @@ serve(async (req) => {
       throw new Error(`Missing Supabase credentials: ${missing.join(', ')}`)
     }
 
-    // Initialize CDP SDK
-    Coinbase.configure({
-      apiKeyName: cdpApiKeyName,
-      privateKey: cdpApiKeyPrivateKey,
+    // Initialize CDP SDK - CdpClient requires apiKeyId, apiKeySecret, and walletSecret
+    const cdp = new CdpClient({
+      apiKeyId: cdpApiKeyId,
+      apiKeySecret: cdpApiKeySecret,
+      walletSecret: cdpWalletSecret,
     })
 
     // Initialize Supabase client
@@ -85,88 +85,43 @@ serve(async (req) => {
       )
     }
 
-    // Get network from environment variable (defaults to testnet for local dev)
-    const networkId = Deno.env.get('CDP_NETWORK_ID') || 'base-sepolia'
-    
-    // Create new wallet (defaults to Base Sepolia testnet for local development)
-    const wallet = await Wallet.create({
-      networkId: networkId,
-      // For production, use Coinbase-Managed (2-of-2 MPC):
-      // walletConfig: { type: 'COINBASE_MANAGED' }
+    // Get network from constants (respects CDP_NETWORK_ID env var, defaults to mainnet)
+    const networkId = getCdpNetwork()
+    console.log('[create-wallet] Detected network:', networkId, {
+      envVar: Deno.env.get('CDP_NETWORK_ID'),
+      supabaseUrl: Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL'),
+      environment: Deno.env.get('ENVIRONMENT') || Deno.env.get('NODE_ENV'),
     })
+    
+    // Create Smart Account for gasless transactions via CDP Paymaster
+    // Smart Accounts on Base automatically use CDP Paymaster for gas sponsorship
+    console.log('[create-wallet] Creating Smart Account with owner for user:', normalizedAddress)
+    
+    // Step 1: Create an EOA owner
+    const accountName = `yaynay-owner-${normalizedAddress.slice(2, 10)}`
+    const owner = await cdp.evm.getOrCreateAccount({ name: accountName })
+    console.log('[create-wallet] Created owner EOA:', owner.address)
+    
+    // Step 2: Create Smart Account owned by the EOA
+    const smartAccountName = `yaynay-smart-${normalizedAddress.slice(2, 10)}`
+    const smartAccount = await cdp.evm.getOrCreateSmartAccount({
+      name: smartAccountName,
+      owner,
+    })
+    
+    const serverWalletAddress = smartAccount.address
+    const walletId = smartAccountName
 
-    // Get the default address
-    const address = await wallet.getDefaultAddress()
-
-    // Extract address string - CDP SDK returns address object with id property
-    let serverWalletAddress: string
-    if (typeof address === 'string') {
-      serverWalletAddress = address
-    } else if (address?.id) {
-      // CDP SDK returns address object with id property
-      serverWalletAddress = address.id
-    } else if (address?.address) {
-      serverWalletAddress = address.address
-    } else if (address?.key?.address) {
-      serverWalletAddress = address.key.address
-    } else if (address?.model?.address_id) {
-      serverWalletAddress = address.model.address_id
-    } else {
-      throw new Error(`Unable to extract address from: ${JSON.stringify(address)}`)
-    }
-
-    // Get wallet ID - CDP SDK returns wallet with id property or from address model
-    let walletId: string
-    if (typeof wallet.getId === 'function') {
-      walletId = wallet.getId()
-    } else if (wallet.id) {
-      walletId = wallet.id
-    } else if (address?.model?.wallet_id) {
-      // Wallet ID is in the address model
-      walletId = address.model.wallet_id
-    } else if (wallet.walletId) {
-      walletId = wallet.walletId
-    } else {
-      // Use address as identifier if wallet ID not available (shouldn't happen with CDP SDK)
-      walletId = serverWalletAddress
-    }
-
-    // Serialize wallet data for storage
-    // CDP SDK uses wallet.export() to get serialized wallet data
-    let walletData: any
-    try {
-      if (typeof wallet.export === 'function') {
-        walletData = await wallet.export()
-      } else {
-        // Fallback: store minimal data (CDP manages wallet server-side)
-        walletData = {
-          id: walletId,
-          address: serverWalletAddress,
-          networkId: networkId,
-        }
-      }
-    } catch (err) {
-      console.error('Error exporting wallet:', err)
-      // Fallback: store minimal data
-      walletData = {
-        id: walletId,
-        address: serverWalletAddress,
-        networkId: networkId,
-      }
-    }
-
-    // Encrypt wallet data before storing
-    const encryptionKey = getEncryptionKey()
-    const encryptedWalletData = await encryptWalletData(walletData, encryptionKey)
-
-    // Store wallet in database with encrypted wallet_data
+    // Store wallet metadata in database
+    // Note: With CdpClient, we don't need to store wallet_data since CDP manages accounts server-side
+    // We only need to store the address for lookup
     const { data: insertedWallet, error: insertError } = await supabase
       .from('server_wallets')
       .insert({
         user_address: normalizedAddress,
         server_wallet_id: walletId,
         server_wallet_address: serverWalletAddress,
-        wallet_data: encryptedWalletData, // ✅ Encrypted before storage
+        wallet_data: {}, // Empty object - CDP manages accounts, no need to store wallet data
         network_id: networkId,
       })
       .select()

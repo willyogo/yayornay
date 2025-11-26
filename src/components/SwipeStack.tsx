@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
 import { X, Heart, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Proposal } from '../lib/supabase';
-import { ProposalCard } from './ProposalCard';
+import { ProposalCard, FlipState } from './ProposalCard';
 import { VoteType } from '../hooks/useVoting';
 import { prefetchZoraCoinData } from '../hooks/useZoraCoin';
-import { getQueuedVotesForVoter } from '../lib/voteQueue';
+import { useVotedProposals } from '../contexts/VotedProposalsContext';
 
 interface SwipeStackProps {
   proposals: Proposal[];
@@ -26,13 +25,14 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   const [activeVote, setActiveVote] = useState<VoteType | null>(null);
   const [voteStatus, setVoteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [cardFlipState, setCardFlipState] = useState<FlipState>('front');
   const cardRef = useRef<HTMLDivElement>(null);
   const startPos = useRef({ x: 0, y: 0 });
   const activePointerId = useRef<number | null>(null);
   const activeInputType = useRef<'mouse' | 'touch' | null>(null);
   const animationLock = useRef(false);
   const [timeUntilNext, setTimeUntilNext] = useState(NEXT_PROPOSAL_DELAY_MS);
-  const { address } = useAccount();
+  const { votedProposals } = useVotedProposals();
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // Initialize audio context on first user interaction
@@ -104,15 +104,23 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
   };
 
   const votedProposalIds = useMemo(() => {
-    if (!address) return new Set<string>();
-    const votes = getQueuedVotesForVoter(address);
-    return new Set(votes.map((vote) => vote.proposalId));
-  }, [address, currentIndex, proposals]);
+    // Use voted proposals from context (optimistic updates)
+    const ids = new Set(votedProposals.keys());
+    console.log('[SwipeStack] Voted proposal IDs:', Array.from(ids));
+    return ids;
+  }, [votedProposals]);
 
-  const availableProposals = useMemo(
-    () => proposals.filter((proposal) => !votedProposalIds.has(proposal.id)),
-    [proposals, votedProposalIds]
-  );
+  const availableProposals = useMemo(() => {
+    const filtered = proposals.filter((proposal) => !votedProposalIds.has(proposal.id));
+    console.log('[SwipeStack] Filtering proposals:', {
+      totalProposals: proposals.length,
+      votedCount: votedProposalIds.size,
+      availableCount: filtered.length,
+      proposalIds: proposals.map(p => p.id).slice(0, 5), // First 5
+      votedIds: Array.from(votedProposalIds).slice(0, 5), // First 5
+    });
+    return filtered;
+  }, [proposals, votedProposalIds]);
 
   const currentProposal = availableProposals[currentIndex];
 
@@ -176,6 +184,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
       setTransitionEnabled(false);
       setCurrentIndex((prev) => prev + 1);
       resetCardPosition();
+      setCardFlipState('front'); // Reset flip state for next card
       setIsAnimatingOut(false);
       setIsPromotingNext(false);
       setVoteStatus('idle');
@@ -197,6 +206,9 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
 
     // Don't allow dragging on pending proposals
     if (currentProposal?.status === 'pending') return;
+
+    // Don't allow dragging when card is flipped
+    if (cardFlipState !== 'front') return;
 
     activePointerId.current = pointerId;
     activeInputType.current = type;
@@ -318,26 +330,26 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
     setCurrentIndex((prev) => Math.min(prev, availableProposals.length - 1));
   }, [availableProposals.length]);
 
-  const latestProposalStart = useMemo(() => {
-    if (!proposals.length) return null;
-
-    const timestamps = proposals
-      .map((proposal) => {
-        const date = new Date(proposal.vote_start || proposal.created_at || proposal.updated_at);
-        return date.getTime();
-      })
-      .filter((value) => Number.isFinite(value)) as number[];
-
-    if (!timestamps.length) return null;
-    return Math.max(...timestamps);
-  }, [proposals]);
-
+  // Calculate next proposal time based on a fixed 12-minute schedule
+  // Proposals are submitted at :00, :12, :24, :36, :48 of each hour
   const nextProposalTimestamp = useMemo(() => {
-    if (!latestProposalStart) {
-      return Date.now() + NEXT_PROPOSAL_DELAY_MS;
-    }
-    return latestProposalStart + NEXT_PROPOSAL_DELAY_MS;
-  }, [latestProposalStart]);
+    const now = Date.now();
+    const currentDate = new Date(now);
+    const currentMinute = currentDate.getMinutes();
+    const currentSecond = currentDate.getSeconds();
+    const currentMs = currentDate.getMilliseconds();
+    
+    // Calculate minutes into current 12-minute cycle
+    const cycleMinute = currentMinute % 12;
+    
+    // Calculate ms until next cycle boundary
+    const msUntilNext = 
+      (12 - cycleMinute - 1) * 60 * 1000 + // remaining full minutes
+      (60 - currentSecond) * 1000 + // remaining seconds
+      (1000 - currentMs); // remaining milliseconds
+    
+    return now + msUntilNext;
+  }, []);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -425,7 +437,7 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
             <div
               key={proposal.id}
               ref={isTopCard ? cardRef : undefined}
-              className={`${isTopCard ? 'relative z-10 w-full transition-transform will-change-transform touch-none select-none cursor-grab active:cursor-grabbing' : 'absolute top-0 left-0 right-0 z-0 w-full pointer-events-none'}`}
+              className={`${isTopCard ? `relative z-10 w-full transition-transform will-change-transform touch-none select-none ${cardFlipState === 'front' ? 'cursor-grab active:cursor-grabbing' : ''}` : 'absolute top-0 left-0 right-0 z-0 w-full pointer-events-none'}`}
               style={{
                 transform,
                 transition,
@@ -452,8 +464,11 @@ export function SwipeStack({ proposals, onVote, testMode, onSubmitCreator }: Swi
                   : undefined
               }
             >
-              <div className="card-content relative w-full cursor-grab active:cursor-grabbing">
-                <ProposalCard proposal={proposal} />
+              <div className={`card-content relative w-full ${cardFlipState === 'front' ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+                <ProposalCard
+                  proposal={proposal}
+                  onFlipStateChange={isTopCard ? setCardFlipState : undefined}
+                />
               </div>
 
               {isTopCard && dragOffset.x > 40 && (

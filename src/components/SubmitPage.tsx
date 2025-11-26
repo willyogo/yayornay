@@ -458,7 +458,7 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                   {!showFeed ? (
                     <>
                       <div className="px-6 py-4 flex items-center gap-3 bg-white relative">
-                        <div className="w-14 h-14 rounded-full overflow-hidden border-3 border-white shadow-md bg-white flex-shrink-0">
+                        <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200 bg-white flex-shrink-0">
                           <img
                             src={profileImage}
                             alt={creatorLabel}
@@ -471,14 +471,8 @@ export function SubmitPage({ onSelectView, currentView }: SubmitPageProps) {
                         </div>
                         <div className="min-w-0">
                           <h2 className="text-2xl font-bold text-gray-900 leading-tight truncate">
-                            {displayData.displayName || creatorLabel}
+                            ${displayData.displayName || creatorLabel}
                           </h2>
-                          {displayData.holders && (
-                            <p className="text-sm text-gray-500 flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {displayData.holders.toLocaleString()} holders
-                            </p>
-                          )}
                           {(farcasterHandle || twitterHandle) && (
                             <div className="flex flex-wrap gap-2 mt-2">
                               {farcasterHandle && (

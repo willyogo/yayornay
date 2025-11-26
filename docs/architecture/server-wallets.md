@@ -109,9 +109,9 @@ User → Your App → Edge Functions → CDP SDK → Server Wallet (managed by C
 - **Technology**: PostgreSQL (Supabase)
 - **Location**: `supabase/migrations/`
 - **Responsibilities**:
-  - Storing wallet metadata
-  - Mapping user addresses to server wallets
-  - Storing serialized wallet data (encrypted)
+  - Storing account metadata
+  - Mapping user addresses to server wallet addresses
+  - CDP manages account keys server-side (no local storage needed)
 
 #### 4. **External Services**
 - **CDP SDK**: Coinbase Developer Platform for wallet management
@@ -130,49 +130,38 @@ User → Your App → Edge Functions → CDP SDK → Server Wallet (managed by C
 **Flow**:
 1. Validates CDP API credentials from environment
 2. Checks if user already has a server wallet (idempotent)
-3. Creates new wallet via CDP SDK (`Wallet.create()`)
-4. Extracts wallet address and ID
-5. Exports wallet data for storage
-6. Encrypts wallet data using AES-GCM-256
-7. Stores wallet metadata in database
-8. Returns wallet address and ID to client
+3. Creates new EVM account via CDP SDK (`cdp.evm.createAccount()`)
+4. Extracts account address and ID
+5. Stores account metadata in database (CDP manages account server-side)
+6. Returns account address and ID to client
 
 **Key Operations**:
 ```typescript
 // Initialize CDP SDK
-Coinbase.configure({
-  apiKeyName: cdpApiKeyName,
-  privateKey: cdpApiKeyPrivateKey,
+const cdp = new CdpClient({
+  apiKeyId: cdpApiKeyId,
+  apiKeySecret: cdpApiKeySecret,
 })
 
-// Create wallet
-const wallet = await Wallet.create({
-  networkId: 'base-sepolia',
-})
+// Create EVM account (CDP manages accounts server-side)
+const evmAccount = await cdp.evm.createAccount()
+const serverWalletAddress = evmAccount.address
+const walletId = evmAccount.id || evmAccount.address
 
-// Get address
-const address = await wallet.getDefaultAddress()
-const serverWalletAddress = address.id
-
-// Export wallet data
-const walletData = await wallet.export()
-
-// Encrypt wallet data
-const encryptedData = await encryptWalletData(walletData, encryptionKey)
-
-// Store in database
+// Store account metadata in database
+// Note: No need to store wallet_data - CDP manages accounts server-side
 await supabase.from('server_wallets').insert({
   user_address: normalizedAddress,
   server_wallet_id: walletId,
   server_wallet_address: serverWalletAddress,
-  wallet_data: encryptedData,
+  wallet_data: {}, // Empty - CDP manages accounts
   network_id: 'base-sepolia',
 })
 ```
 
 **Security**:
 - CDP API keys only accessible server-side
-- Wallet data encrypted before storage
+- Accounts managed by CDP server-side (no local wallet data storage needed)
 - Idempotent: Returns existing wallet if already created
 
 **Response**:
@@ -229,43 +218,41 @@ const { data } = await supabase
 
 **Flow**:
 1. Validates CDP API credentials
-2. Retrieves wallet from database
-3. Decrypts wallet data
-4. Imports wallet from stored data (`Wallet.import()`)
-5. Signs and sends transaction via CDP SDK
-6. Returns transaction hash
+2. Retrieves account address from database
+3. Sends transaction using account address via CDP SDK
+4. Returns transaction hash
 
 **Key Operations**:
 ```typescript
-// Get wallet from database
+// Initialize CDP SDK
+const cdp = new CdpClient({
+  apiKeyId: cdpApiKeyId,
+  apiKeySecret: cdpApiKeySecret,
+})
+
+// Get account address from database
 const { data: walletRecord } = await supabase
   .from('server_wallets')
-  .select('*')
+  .select('server_wallet_address, network_id')
   .eq('user_address', normalizedAddress)
   .single()
 
-// Decrypt wallet data
-const decryptedData = await decryptWalletData(
-  walletRecord.wallet_data,
-  encryptionKey
-)
-
-// Restore wallet from stored data
-const wallet = await Wallet.import(JSON.parse(decryptedData))
-
-// Send transaction
-const transfer = await wallet.send({
-  to: recipientAddress,
-  amount: amount.toString(),
-  currency: currency || 'ETH',
-  networkId: walletRecord.network_id || 'base-sepolia',
-  data: data || undefined,
+// Send transaction using CdpClient
+// CDP manages the account server-side, we just need the address
+const txResult = await cdp.evm.sendTransaction({
+  address: walletRecord.server_wallet_address,
+  network: walletRecord.network_id || 'base-sepolia',
+  transaction: {
+    to: recipientAddress,
+    value: amount.toString(), // Amount in wei
+    data: data || undefined, // Optional contract call data
+  },
 })
 ```
 
 **Security**:
-- Wallet data only accessed server-side
-- Decryption happens only when needed
+- CDP API keys only accessible server-side
+- Accounts managed by CDP server-side (no wallet import/export needed)
 - Transaction signing happens securely via CDP SDK
 
 **Request**:
@@ -304,12 +291,10 @@ const transfer = await wallet.send({
 3. Edge Function checks database for existing wallet
    ↓
 4. If not exists:
-   a. Initialize CDP SDK with API keys
-   b. Create wallet: Wallet.create()
+   a. Initialize CdpClient with API keys
+   b. Create EVM account: cdp.evm.createAccount()
    c. Extract address and ID
-   d. Export wallet data: wallet.export()
-   e. Encrypt wallet data: encryptWalletData()
-   f. Store in database
+   d. Store account metadata in database (CDP manages account server-side)
    ↓
 5. Return wallet address and ID to frontend
    ↓
@@ -346,15 +331,14 @@ const transfer = await wallet.send({
    Body: { userAddress, to, amount, currency }
    ↓
 3. Edge Function:
-   a. Retrieves wallet from database
-   b. Decrypts wallet_data
-   c. Imports wallet: Wallet.import(decryptedData)
-   d. Signs transaction: wallet.send({...})
-   e. Broadcasts to blockchain
+   a. Retrieves account address from database
+   b. Sends transaction: cdp.evm.sendTransaction({ address, transaction })
+   c. CDP SDK handles signing, gas estimation, and broadcasting
    ↓
 4. CDP SDK handles:
-   - Transaction signing
+   - Transaction signing (using CDP-managed account)
    - Gas estimation
+   - Nonce management
    - Broadcasting to network
    ↓
 5. Return transaction hash to frontend
@@ -374,7 +358,7 @@ CREATE TABLE server_wallets (
   user_address text NOT NULL UNIQUE,           -- User's connected wallet
   server_wallet_id text NOT NULL UNIQUE,       -- CDP wallet ID
   server_wallet_address text NOT NULL,          -- Server wallet address
-  wallet_data jsonb NOT NULL,                  -- Encrypted wallet data
+  wallet_data jsonb NOT NULL DEFAULT '{}',    -- Empty object - CDP manages accounts server-side
   network_id text DEFAULT 'base-sepolia',
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
@@ -427,12 +411,10 @@ CREATE TABLE server_wallets (
 - `network_id` - Network (base-sepolia/base-mainnet)
 - `created_at` - Creation timestamp
 
-**Private Data** (encrypted, Edge Functions only):
-- `wallet_data` - Encrypted JSON containing:
-  - Wallet ID
-  - Wallet configuration
-  - Network information
-  - Other CDP SDK wallet metadata
+**Private Data** (Edge Functions only):
+- `wallet_data` - Empty JSON object `{}`
+  - Previously stored encrypted wallet data, but CDP now manages accounts server-side
+  - Kept as empty object to maintain database schema compatibility
 
 ---
 
@@ -583,35 +565,30 @@ Content-Type: application/json
 - Never exposed to client-side code
 - Only accessible in Edge Functions (server-side)
 
-### 2. **Wallet Data Security**
+### 2. **Account Management**
 
-**Encryption Process**:
+**CDP-Managed Accounts**:
 ```
-Wallet.export() 
-  → JSON object
-  → encryptWalletData() 
-  → AES-GCM-256 encryption
-  → Base64 string
-  → Stored in database
+cdp.evm.createAccount()
+  → Account created by CDP
+  → Account address returned
+  → Address stored in database
+  → CDP manages account keys server-side
 ```
 
-**Decryption Process**:
+**Transaction Flow**:
 ```
-Database (encrypted Base64)
-  → decryptWalletData()
-  → AES-GCM-256 decryption
-  → JSON string
-  → JSON.parse()
-  → Wallet object
-  → Wallet.import()
-  → Ready for transactions
+Database lookup (account address)
+  → cdp.evm.sendTransaction({ address, transaction })
+  → CDP signs transaction using managed account
+  → Transaction broadcast to network
 ```
 
 **Security Features**:
-- `wallet_data` encrypted with AES-GCM-256 before storage
-- Never exposed through RLS policies
-- Only Edge Functions can access via service role
-- Decrypted only when needed for transactions
+- Accounts managed by CDP server-side (no local key storage)
+- Account addresses stored in database (public information)
+- No encryption needed - CDP handles all key management
+- Only Edge Functions can initiate transactions via CDP API
 
 ### 3. **Access Control**
 - RLS policies control database access
@@ -644,18 +621,18 @@ Database (encrypted Base64)
 ### ✅ Implemented
 
 1. **Edge Functions**:
-   - `create-wallet` - Creates wallets, encrypts data, stores in DB
-   - `get-wallet` - Retrieves public wallet info
-   - `send-transaction` - Decrypts wallet, signs transactions
+   - `create-wallet` - Creates EVM accounts via CDP, stores address in DB
+   - `get-wallet` - Retrieves public account info
+   - `send-transaction` - Sends transactions using CDP-managed accounts
 
 2. **Database**:
    - `server_wallets` table with RLS policies
-   - Encryption/decryption utilities
+   - Stores account addresses (CDP manages keys server-side)
    - Idempotent migrations
 
 3. **Backend Flow**:
-   - Complete server-side wallet management
-   - Secure encryption/decryption
+   - Complete server-side account management via CDP
+   - CDP handles all key management and signing
    - Error handling and validation
 
 4. **Testing**:
@@ -773,13 +750,15 @@ export function useServerWallet() {
 
 **Required for Edge Functions**:
 ```env
-VITE_CDP_API_KEY=your-api-key-name
-VITE_CDP_API_SECRET=your-api-key-private-key
-WALLET_ENCRYPTION_KEY=base64-encoded-32-byte-key
+VITE_CDP_API_KEY=your-api-key-id
+VITE_CDP_API_SECRET=your-api-key-secret
+CDP_WALLET_SECRET=your-wallet-secret
 CDP_NETWORK_ID=base-sepolia  # or base-mainnet for production
 VITE_SUPABASE_URL=http://localhost:54321
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
+
+**Note**: With CdpClient, no encryption key is needed since CDP manages accounts server-side. However, `CDP_WALLET_SECRET` is required.
 
 **Local Development**:
 ```bash
@@ -790,31 +769,38 @@ supabase functions serve --env-file .env
 **Production**:
 ```bash
 # Set secrets in Supabase
-supabase secrets set VITE_CDP_API_KEY=your-key
-supabase secrets set VITE_CDP_API_SECRET=your-secret
-supabase secrets set WALLET_ENCRYPTION_KEY=your-key
+supabase secrets set VITE_CDP_API_KEY=your-api-key-id
+supabase secrets set VITE_CDP_API_SECRET=your-api-key-secret
+supabase secrets set CDP_WALLET_SECRET=your-wallet-secret
+# Note: No encryption key needed - CDP manages accounts server-side
 ```
 
 ### CDP SDK Integration
 
 **In Edge Functions** (Deno):
 ```typescript
-import { Coinbase, Wallet } from 'npm:@coinbase/coinbase-sdk@latest'
+import { CdpClient } from 'npm:@coinbase/cdp-sdk@latest'
 
-// Configure
-Coinbase.configure({
-  apiKeyName: Deno.env.get('VITE_CDP_API_KEY'),
-  privateKey: Deno.env.get('VITE_CDP_API_SECRET'),
+// Initialize CdpClient
+const cdp = new CdpClient({
+  apiKeyId: Deno.env.get('VITE_CDP_API_KEY') || Deno.env.get('CDP_API_KEY_ID'),
+  apiKeySecret: Deno.env.get('VITE_CDP_API_SECRET') || Deno.env.get('CDP_API_KEY_SECRET'),
+  walletSecret: Deno.env.get('CDP_WALLET_SECRET') || Deno.env.get('VITE_CDP_WALLET_SECRET'),
 })
 
-// Create wallet
-const wallet = await Wallet.create({ networkId: 'base-sepolia' })
-
-// Import wallet
-const wallet = await Wallet.import(walletData)
+// Create EVM account
+const evmAccount = await cdp.evm.createAccount()
+const address = evmAccount.address
 
 // Send transaction
-const transfer = await wallet.send({ to, amount, currency, networkId })
+const txResult = await cdp.evm.sendTransaction({
+  address: address,
+  network: 'base-sepolia',
+  transaction: {
+    to: recipientAddress,
+    value: amountInWei, // Amount as string in wei
+  },
+})
 ```
 
 ---
@@ -842,10 +828,11 @@ const transfer = await wallet.send({ to, amount, currency, networkId })
 - Normalizing to lowercase ensures consistent lookups
 - Prevents duplicate wallets for same user
 
-### 5. **Why Encrypt Wallet Data?**
-- Wallet data contains sensitive information
-- Encryption adds defense-in-depth security
-- Even if database is compromised, data remains protected
+### 5. **Why CDP-Managed Accounts?**
+- CDP manages account keys server-side (no local key storage)
+- Eliminates need for encryption/decryption of wallet data
+- Simplified security model - CDP handles all key operations
+- Even if database is compromised, no sensitive keys are stored
 
 ---
 
@@ -860,8 +847,6 @@ supabase/
 │   │   └── index.ts           # Wallet retrieval endpoint
 │   ├── send-transaction/
 │   │   └── index.ts           # Transaction sending endpoint
-│   ├── _shared/
-│   │   └── crypto.ts          # Encryption utilities
 │   └── deno.json              # Deno configuration
 │
 └── migrations/
@@ -877,12 +862,12 @@ src/
 
 ## Key Points
 
-1. **Wallets are created server-side** - CDP API keys never exposed to client
-2. **Wallet data is encrypted** - AES-GCM-256 encryption before storage
-3. **Idempotent creation** - Calling create-wallet multiple times returns existing wallet
-4. **Public info only** - get-wallet never exposes encrypted wallet_data
-5. **On-demand decryption** - Wallet only decrypted when needed for transactions
-6. **One wallet per user** - Unique constraint on user_address
+1. **Accounts are created server-side** - CDP API keys never exposed to client
+2. **CDP manages accounts** - Account keys managed by CDP server-side, no local storage needed
+3. **Idempotent creation** - Calling create-wallet multiple times returns existing account
+4. **Public info only** - get-wallet only returns account address and metadata
+5. **Direct transaction sending** - Transactions sent using account address, no wallet import needed
+6. **One account per user** - Unique constraint on user_address
 
 ---
 
@@ -908,9 +893,9 @@ src/
 The Server Wallets system provides a secure, scalable way to manage blockchain wallets for users without requiring them to install wallet extensions. The architecture separates concerns cleanly:
 
 - **Client**: User interface and API calls
-- **Edge Functions**: Secure wallet operations (server-side)
-- **Database**: Wallet metadata storage with encryption
-- **CDP SDK**: Wallet creation and transaction signing
+- **Edge Functions**: Secure account operations (server-side)
+- **Database**: Account address storage (CDP manages keys)
+- **CDP SDK**: Account creation and transaction signing
 - **Blockchain**: Transaction execution
 
 This design ensures API keys remain secure, wallet operations are reliable, and the system can scale to handle many users efficiently.

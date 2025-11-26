@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS server_wallets (
   user_address text NOT NULL UNIQUE, -- The user's connected wallet address
   server_wallet_id text NOT NULL UNIQUE, -- CDP wallet ID
   server_wallet_address text NOT NULL, -- The server wallet's address
-  wallet_data jsonb NOT NULL, -- Serialized wallet data (should be encrypted in production!)
-  network_id text DEFAULT 'base-sepolia',
+  wallet_data jsonb NOT NULL DEFAULT '{}', -- Empty object - CDP manages accounts server-side
+  network_id text DEFAULT 'base', -- Defaults to Base Mainnet (can be overridden by CDP_NETWORK_ID env var)
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
@@ -43,9 +43,9 @@ CREATE POLICY "Allow wallet updates"
   USING (true)
   WITH CHECK (true);
 
--- Note: wallet_data should never be exposed through RLS policies
+-- Note: wallet_data is kept for schema compatibility but is empty (CDP manages accounts server-side)
 -- Only server-side Edge Functions should access wallet_data
 
 -- Add comment to table
-COMMENT ON TABLE server_wallets IS 'Stores CDP server wallet information for each user. wallet_data contains sensitive information and should be encrypted in production.';
+COMMENT ON TABLE server_wallets IS 'Stores CDP server wallet information for each user. wallet_data is empty - CDP manages accounts server-side.';
 

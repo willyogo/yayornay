@@ -9,7 +9,11 @@ import { useVoting } from './hooks/useVoting';
 import { AppHeader } from './components/AppHeader';
 import { SubmitPage } from './components/SubmitPage';
 import { DirectProposalPage } from './components/DirectProposalPage';
+import { ServerWalletDisplay } from './components/ServerWalletDisplay';
+import { NoVotesModal } from './components/NoVotesModal';
+import { DelegationModal } from './components/DelegationModal';
 import { AppView } from './types/view';
+import { VotedProposalsProvider, useVotedProposals } from './contexts/VotedProposalsContext';
 
 // Get test mode from URL query parameter
 const getTestModeFromURL = (): boolean => {
@@ -27,21 +31,85 @@ const TestModeContext = createContext<{
 
 export const useTestMode = () => useContext(TestModeContext);
 
-function App() {
+function AppContent() {
   const { isConnected, address } = useAccount();
   const [testMode] = useState(() => getTestModeFromURL());
   const [view, setView] = useState<AppView>('landing');
   // Pass user address to only fetch proposals they haven't voted on
-  const { proposals, loading, refetch } = useProposals(testMode, address);
-  const { submitVote } = useVoting();
+  const { proposals, loading } = useProposals(testMode, address);
+  const { 
+    submitVoteViaServerWallet, 
+    isDelegatedToServerWallet, 
+    hasVotingPower 
+  } = useVoting();
+  const { addVotedProposal } = useVotedProposals();
 
-  // Wrap submitVote to refetch proposals after voting
+  // Modal state
+  const [showNoVotesModal, setShowNoVotesModal] = useState(false);
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
+  // Store pending vote to execute after delegation
+  const [pendingVote, setPendingVote] = useState<{ proposalId: string; voteType: 'for' | 'against' | 'abstain' } | null>(null);
+
+  // Wrap submitVote to track votes immediately in context and handle delegation logic
   const handleVote = async (proposalId: string, voteType: 'for' | 'against' | 'abstain') => {
-    await submitVote(proposalId, voteType);
-    // Refetch proposals after successful vote
-    // Note: There might be a delay before the subgraph indexes the vote,
-    // but the UI will remove the card anyway via the swipe animation
-    setTimeout(() => refetch(), 2000);
+    console.log('[App] handleVote called:', { proposalId, voteType, hasVotingPower, isDelegatedToServerWallet });
+    
+    // Check if user has voting power
+    if (!hasVotingPower) {
+      // Show modal directing them to auction
+      console.log('[App] User has no voting power - showing NoVotesModal');
+      setShowNoVotesModal(true);
+      throw new Error('No voting power'); // Throw to prevent SwipeStack from advancing
+    }
+
+    // Check if user has delegated to server wallet
+    if (isDelegatedToServerWallet) {
+      // Vote via server wallet (invisible voting)
+      console.log('[App] User delegated to server wallet - voting via server wallet');
+      
+      // Add to voted proposals context immediately (optimistic update)
+      addVotedProposal(proposalId, voteType);
+      
+      // Submit vote via server wallet
+      try {
+        await submitVoteViaServerWallet(proposalId, voteType);
+        console.log('[App] Server wallet vote successful');
+      } catch (error) {
+        console.error('[App] Server wallet vote failed:', error);
+        throw error;
+      }
+    } else {
+      // User has voting power but hasn't delegated - show delegation modal
+      console.log('[App] User has voting power but NOT delegated - showing DelegationModal');
+      
+      // Store the pending vote to execute after delegation
+      setPendingVote({ proposalId, voteType });
+      setShowDelegationModal(true);
+      
+      throw new Error('Delegation required'); // Throw to prevent SwipeStack from advancing
+    }
+  };
+
+  // Execute pending vote after successful delegation
+  const handleDelegationSuccess = async () => {
+    console.log('[App] Delegation successful, executing pending vote:', pendingVote);
+    setShowDelegationModal(false);
+    
+    if (pendingVote) {
+      const { proposalId, voteType } = pendingVote;
+      setPendingVote(null);
+      
+      // Now vote via server wallet
+      console.log('[App] Voting via server wallet after delegation');
+      addVotedProposal(proposalId, voteType);
+      
+      try {
+        await submitVoteViaServerWallet(proposalId, voteType);
+        console.log('[App] Server wallet vote successful after delegation');
+      } catch (error) {
+        console.error('[App] Server wallet vote failed after delegation:', error);
+      }
+    }
   };
   
   // Track the view before connecting to return to it after login
@@ -89,6 +157,15 @@ function App() {
           <SubmitPage onSelectView={setView} currentView={view} />
         ) : view === 'propose' ? (
           <DirectProposalPage onSelectView={setView} currentView={view} />
+        ) : view === 'wallet' ? (
+          <div className="min-h-screen bg-gray-50 flex flex-col">
+            <AppHeader view={view} onChange={setView} />
+            <main className="flex-1 overflow-y-auto">
+              <div className="max-w-2xl mx-auto px-4 py-8">
+                <ServerWalletDisplay />
+              </div>
+            </main>
+          </div>
         ) : (
           <LandingPage onBecomeVoter={() => setView('auction')} />
         )}
@@ -135,6 +212,21 @@ function App() {
     );
   }
 
+  if (view === 'wallet') {
+    return (
+      <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+          <AppHeader view={view} onChange={setView} />
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-2xl mx-auto px-4 py-8">
+              <ServerWalletDisplay />
+            </div>
+          </main>
+        </div>
+      </TestModeContext.Provider>
+    );
+  }
+
   return (
     <TestModeContext.Provider value={{ testMode, setTestMode: () => {} }}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -146,8 +238,35 @@ function App() {
           onSubmitCreator={() => setView('submit')}
           testMode={testMode}
         />
+
+        {/* Modals */}
+        <NoVotesModal
+          isOpen={showNoVotesModal}
+          onClose={() => setShowNoVotesModal(false)}
+          onGoToAuction={() => {
+            setShowNoVotesModal(false);
+            setView('auction');
+          }}
+        />
+        
+        <DelegationModal
+          isOpen={showDelegationModal}
+          onClose={() => {
+            setShowDelegationModal(false);
+            setPendingVote(null); // Clear pending vote if user closes modal
+          }}
+          onDelegateSuccess={handleDelegationSuccess}
+        />
       </div>
     </TestModeContext.Provider>
+  );
+}
+
+function App() {
+  return (
+    <VotedProposalsProvider>
+      <AppContent />
+    </VotedProposalsProvider>
   );
 }
 

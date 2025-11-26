@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Supabase Edge Function to get a user's server wallet address
-// This is a read-only function that doesn't expose sensitive wallet data
+// This is a read-only function that returns account metadata
 // Note: This file runs in Deno, not Node.js, so TypeScript checking is disabled
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -43,7 +43,7 @@ serve(async (req) => {
     // Normalize address to lowercase
     const normalizedAddress = userAddress.toLowerCase()
 
-    // Get wallet from database (only return public info, not wallet_data)
+    // Get account from database (only return public metadata)
     const { data: walletRecord, error: fetchError } = await supabase
       .from('server_wallets')
       .select('server_wallet_address, server_wallet_id, network_id, created_at')

@@ -138,6 +138,11 @@ User actions trigger component event handlers, which call custom hooks like useV
 
 **Zora API** provides creator profile and token data through GraphQL queries. Creator tokens are fetched when the modal opens, with no caching, so they refetch every time the modal is opened.
 
+**Supabase Edge Functions** provide serverless functions for server wallet management:
+- `create-wallet` - Creates CDP server wallets via CdpClient SDK
+- `get-wallet` - Retrieves server wallet addresses from database
+- `send-transaction` - Sends transactions using CDP-managed accounts
+
 ## Data Flow Patterns
 
 The application uses unidirectional data flow where data flows down via props and events flow up via callbacks. Parent components pass data down to children, and children notify parents through callback functions.
@@ -146,9 +151,67 @@ Async data loading uses useEffect hooks that call async functions when dependenc
 
 Error handling uses try-catch blocks in async functions. Errors are caught, logged, and state is updated accordingly, with loading states managed in finally blocks.
 
+## Server Wallet Flow
+
+### Wallet Creation Flow
+
+When a user connects their wallet and navigates to the Wallet view:
+
+1. **Component Mount**: `ServerWalletDisplay` component mounts and calls `useServerWallet` hook
+2. **Hook Initialization**: `useServerWallet` checks if user has a connected wallet address via `useAccount()`
+3. **Wallet Lookup**:
+   - Calls `get-wallet` Edge Function with user's address
+   - Edge Function queries `server_wallets` table
+   - Returns wallet address if found
+4. **Wallet Creation** (if not found):
+   - Calls `create-wallet` Edge Function
+   - Edge Function initializes `CdpClient` with API credentials
+   - Calls `cdp.evm.createAccount()` to create new EVM account
+   - Stores account address and ID in database
+   - Returns wallet address to frontend
+5. **State Update**: Hook updates state with wallet address, component displays it
+
+### Transaction Sending Flow
+
+When a user submits a transaction via `ServerWalletDisplay`:
+
+1. **Form Submission**: User enters recipient address and amount (in ETH)
+2. **Validation**:
+   - Validates Ethereum address format
+   - Converts ETH amount to wei using `parseEther`
+   - Checks wallet is connected
+3. **Transaction Request**:
+   - Calls `send-transaction` Edge Function with:
+     - `userAddress`: Connected wallet address (for lookup)
+     - `to`: Recipient address
+     - `amount`: Amount in wei (as string)
+     - `currency`: "ETH"
+4. **Edge Function Processing**:
+   - Retrieves server wallet address from database
+   - Initializes `CdpClient` with API credentials
+   - Calls `cdp.evm.sendTransaction()` with account address and transaction details
+   - CDP SDK handles: gas estimation, nonce management, signing, broadcasting
+5. **Response Handling**:
+   - Returns transaction hash to frontend
+   - Component displays success message with BaseScan link
+   - Form resets for next transaction
+
+### Data Sources
+
+**Supabase Database** stores server wallet metadata:
+- Maps user addresses to server wallet addresses
+- Stores account IDs and network information
+- Uses Row Level Security for access control
+
+**Coinbase Developer Platform (CDP)** manages accounts server-side:
+- Creates and manages EVM accounts
+- Handles transaction signing and broadcasting
+- Provides account addresses for transactions
+
 ## Related Documentation
 
 - [Architecture Overview](./overview.md) - System architecture
 - [Component Architecture](./components.md) - Component structure
 - [State Management](./state-management.md) - State patterns
+- [Server Wallets](./server-wallets.md) - Server wallet architecture details
 - [API Reference](../api/) - External API documentation
