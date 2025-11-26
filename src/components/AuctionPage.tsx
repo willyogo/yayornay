@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAccount, useConnect } from 'wagmi';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
@@ -45,30 +45,26 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   const [viewNounId, setViewNounId] = useState<number | null>(null);
   const [displayAuction, setDisplayAuction] = useState<Auction | undefined>();
   const [displayCountdown, setDisplayCountdown] = useState(0);
+  const lastLatestNounId = useRef<number | null>(null);
 
   const sponsoredTx = useSponsoredTransaction();
 
-  // Update viewNounId when current auction changes (only if not viewing a past auction)
+  // Update viewNounId when current auction changes
   useEffect(() => {
     if (!auction) return;
     const currentNounId = Number(auction.nounId);
-    
-    // Only auto-update if:
-    // 1. viewNounId is null (initial load)
-    // 2. viewNounId is >= currentNounId (viewing current or future auction)
-    // Don't override if user is viewing a past auction (viewNounId < currentNounId)
     setViewNounId((prev) => {
-      if (prev == null) {
+      const wasViewingLatest =
+        prev == null || prev === lastLatestNounId.current;
+      const atOrAhead = prev != null && prev >= currentNounId;
+      const nextView = wasViewingLatest || atOrAhead ? currentNounId : prev;
+
+      if (nextView === currentNounId) {
         setDisplayAuction(auction);
-        return currentNounId;
       }
-      // If viewing current or future auction, update to current
-      if (prev >= currentNounId) {
-        setDisplayAuction(auction);
-        return currentNounId;
-      }
-      // Otherwise, keep the past auction view (don't update displayAuction here)
-      return prev;
+
+      lastLatestNounId.current = currentNounId;
+      return nextView;
     });
   }, [auction]);
 
@@ -163,20 +159,21 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   const isCurrentView = latestNounId != null && viewNounId === latestNounId;
 
   const handlePrev = useCallback(() => {
+    if (!canGoPrev) return;
     setViewNounId((prev) => {
       if (prev == null || prev <= 0) return prev;
       return prev - 1;
     });
-  }, []);
+  }, [canGoPrev]);
 
   const handleNext = useCallback(() => {
-    if (latestNounId == null) return;
+    if (latestNounId == null || !canGoNext) return;
     setViewNounId((prev) => {
       if (prev == null) return latestNounId;
       if (prev >= latestNounId) return prev;
       return prev + 1;
     });
-  }, [latestNounId]);
+  }, [latestNounId, canGoNext]);
 
   const dateLabel = useMemo(() => {
     if (!activeAuction || !activeAuction.startTime || activeAuction.startTime === 0n) {
@@ -357,6 +354,15 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       setTimeout(() => setActionMessage(null), 6000);
     }
   }, [auction, attemptSettle, isConnected, refetch, sponsoredTx.hasPaymasterSupport]);
+
+  // If viewing the latest auction and it has ended, poll for the next one
+  useEffect(() => {
+    if (!isCurrentView || status !== 'ended') return;
+    const interval = setInterval(() => {
+      refetch();
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [isCurrentView, status, refetch]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">

@@ -75,24 +75,37 @@ export function useAuction() {
     functionName: 'minBidIncrementPercentage',
   });
 
+  const { data: duration } = useReadContract({
+    address: CONTRACTS.AUCTION_HOUSE,
+    abi: AUCTION_HOUSE_ABI,
+    functionName: 'duration',
+  });
+
   // Parse contract auction data
   const contractAuction: Auction | undefined = useMemo(() => {
     if (!auctionData) return undefined;
 
     try {
       const obj = auctionData as any;
+      const startTime = BigInt(obj.startTime ?? obj.endTime ?? 0);
+      const endTimeField = BigInt(obj.endTime ?? obj.startTime ?? 0);
+      const derivedEndTime =
+        duration && duration > 0n
+          ? startTime + duration
+          : endTimeField;
+
       return {
         nounId: BigInt(obj.nounId ?? 0),
         amount: BigInt(obj.amount ?? 0),
-        startTime: BigInt(obj.startTime ?? obj.endTime ?? 0),
-        endTime: BigInt(obj.endTime ?? obj.startTime ?? 0),
+        startTime,
+        endTime: derivedEndTime,
         bidder: (obj.bidder ?? ZERO_ADDRESS) as `0x${string}`,
         settled: Boolean(obj.settled),
       };
     } catch {
       return auctionData as Auction;
     }
-  }, [auctionData]);
+  }, [auctionData, duration]);
 
   // Prefer the freshest auction data between subgraph and contract
   const auction: Auction | undefined = useMemo(() => {
