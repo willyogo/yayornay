@@ -156,21 +156,27 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     }
   }, [connect, connectors]);
 
+  const latestNounId = auction ? Number(auction.nounId) : null;
   const activeAuction = displayAuction ?? auction;
+  const canGoPrev = viewNounId != null && viewNounId > 0;
+  const canGoNext = latestNounId != null && viewNounId != null && viewNounId < latestNounId;
+  const isCurrentView = latestNounId != null && viewNounId === latestNounId;
 
   const handlePrev = useCallback(() => {
-    if (viewNounId == null) return;
-    setViewNounId(Math.max(0, viewNounId - 1));
-  }, [viewNounId]);
+    setViewNounId((prev) => {
+      if (prev == null || prev <= 0) return prev;
+      return prev - 1;
+    });
+  }, []);
 
   const handleNext = useCallback(() => {
-    if (viewNounId == null || !auction) return;
-    if (viewNounId >= Number(auction.nounId)) return;
-    setViewNounId(viewNounId + 1);
-  }, [viewNounId, auction]);
-
-  const canGoNext = auction ? (viewNounId ?? 0) < Number(auction.nounId) : false;
-  const isCurrentView = viewNounId === (auction ? Number(auction.nounId) : null);
+    if (latestNounId == null) return;
+    setViewNounId((prev) => {
+      if (prev == null) return latestNounId;
+      if (prev >= latestNounId) return prev;
+      return prev + 1;
+    });
+  }, [latestNounId]);
 
   const dateLabel = useMemo(() => {
     if (!activeAuction || !activeAuction.startTime || activeAuction.startTime === 0n) {
@@ -373,6 +379,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
             onPrev={handlePrev}
             onNext={handleNext}
             canGoNext={canGoNext}
+            canGoPrev={canGoPrev}
             currentWalletAddress={address}
           />
 

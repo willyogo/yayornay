@@ -4,6 +4,8 @@ import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts'
 import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
 import { fetchLatestAuction, isSubgraphConfigured } from '../lib/subgraph';
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 export function useAuction() {
   const [subgraphAuction, setSubgraphAuction] = useState<Auction | undefined>();
   const [subgraphLoading, setSubgraphLoading] = useState(true);
@@ -73,47 +75,38 @@ export function useAuction() {
     functionName: 'minBidIncrementPercentage',
   });
 
-  const { data: duration } = useReadContract({
-    address: CONTRACTS.AUCTION_HOUSE,
-    abi: AUCTION_HOUSE_ABI,
-    functionName: 'duration',
-  });
-
-  // Prefer subgraph data if available, otherwise parse contract data
-  // Parse auction data: contract's "endTime" field actually contains the startTime
-  // Calculate actual endTime as startTime + duration
-  const auction: Auction | undefined = useMemo(() => {
-    // Prefer subgraph data if available
-    if (subgraphAuction) {
-      return subgraphAuction;
-    }
-
+  // Parse contract auction data
+  const contractAuction: Auction | undefined = useMemo(() => {
     if (!auctionData) return undefined;
-    
+
     try {
       const obj = auctionData as any;
-      const contractEndTime = BigInt(obj.endTime || 0);
-      
-      // Contract's "endTime" field contains the actual startTime
-      const actualStartTime = contractEndTime;
-      
-      // Calculate actual endTime as startTime + duration
-      const actualEndTime = duration && duration > 0n
-        ? contractEndTime + duration
-        : contractEndTime; // Fallback if no duration
-      
       return {
-        nounId: BigInt(obj.nounId || 0),
-        amount: BigInt(obj.amount || 0),
-        startTime: actualStartTime,
-        endTime: actualEndTime,
-        bidder: obj.bidder as `0x${string}`,
+        nounId: BigInt(obj.nounId ?? 0),
+        amount: BigInt(obj.amount ?? 0),
+        startTime: BigInt(obj.startTime ?? obj.endTime ?? 0),
+        endTime: BigInt(obj.endTime ?? obj.startTime ?? 0),
+        bidder: (obj.bidder ?? ZERO_ADDRESS) as `0x${string}`,
         settled: Boolean(obj.settled),
       };
     } catch {
       return auctionData as Auction;
     }
-  }, [subgraphAuction, auctionData, duration]);
+  }, [auctionData]);
+
+  // Prefer the freshest auction data between subgraph and contract
+  const auction: Auction | undefined = useMemo(() => {
+    const pickLatest = (a?: Auction, b?: Auction) => {
+      if (!a) return b;
+      if (!b) return a;
+      if (a.nounId === b.nounId) {
+        return Number(a.endTime) >= Number(b.endTime) ? a : b;
+      }
+      return a.nounId > b.nounId ? a : b;
+    };
+
+    return pickLatest(subgraphAuction, contractAuction);
+  }, [contractAuction, subgraphAuction]);
   const [countdown, setCountdown] = useState(0);
 
   // Update countdown every second
@@ -163,7 +156,6 @@ export function useAuction() {
     reservePrice: reservePrice ? formatEth(reservePrice) : '0',
     reservePriceWei: reservePrice ?? 0n,
     minIncrementPct: typeof minIncrementPct === 'number' ? minIncrementPct : 5,
-    duration: duration ?? 0n,
     minRequiredWei,
     status,
     isLoading,
@@ -198,4 +190,3 @@ export function useAuction() {
     }, [refetch]),
   };
 }
-

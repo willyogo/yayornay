@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Wallet, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import { parseEther, formatEther } from 'viem';
 import NounImage from './NounImage';
 import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
@@ -64,6 +64,7 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
     return roundedUp.toFixed(2);
   }, [minRequiredWei]);
 
+  const [copied, setCopied] = useState(false);
   const [bidInput, setBidInput] = useState('');
   const handleBidClick = () => {
     if (!onPlaceBid) return onOpenBid();
@@ -72,6 +73,18 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
       onPlaceBid(wei);
     } catch {
       onOpenBid();
+    }
+  };
+
+  const handleCopyBidder = async () => {
+    if (!hasBids || !auction?.bidder) return;
+    try {
+      await navigator.clipboard.writeText(auction.bidder);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.warn('Failed to copy bidder address', err);
+      setCopied(false);
     }
   };
 
@@ -163,23 +176,39 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-gray-50 px-4 py-3">
+            <button
+              type="button"
+              onClick={hasBids ? handleCopyBidder : undefined}
+              disabled={!hasBids}
+              className="rounded-2xl bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 disabled:cursor-default disabled:hover:bg-gray-50"
+            >
               <p className="text-xs uppercase tracking-wide text-gray-500">
                 {isCurrentView ? 'Highest bidder' : 'Winning bidder'}
               </p>
-              <p className="mt-1 text-base font-semibold text-gray-900">
+              <div className="mt-1 flex items-center gap-3">
                 {hasBids ? (
-                  <EnsName 
-                    address={auction.bidder} 
-                    className="text-base font-semibold text-gray-900"
-                    showAvatar={true}
-                    avatarSize="sm"
-                  />
+                  <>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <EnsName 
+                        address={auction.bidder} 
+                        className="text-2xl font-bold text-gray-900 truncate"
+                        showAvatar={true}
+                        avatarSize="sm"
+                        shortStart={5}
+                      />
+                    </div>
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-600 shadow-sm">
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </span>
+                  </>
                 ) : (
-                  'No bids yet'
+                  <span className="text-base font-semibold text-gray-900">No bids yet</span>
                 )}
-              </p>
-            </div>
+              </div>
+              {copied && hasBids && (
+                <p className="mt-1 text-xs text-gray-500">Winning bidder address copied</p>
+              )}
+            </button>
             <div className="rounded-2xl bg-gray-50 px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">Current bid</p>
               <p className="mt-1 text-2xl font-bold text-gray-900">{etherLabel}</p>
