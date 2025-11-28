@@ -113,10 +113,20 @@ const filterAgentProposals = (proposals: SubgraphProposal[]) =>
 
 async function gql<T>(variables: Record<string, unknown>, query: string = PROPOSALS_QUERY): Promise<T> {
   const endpoint = getSubgraphEndpoint();
+  const apiKey = import.meta.env.VITE_THE_GRAPH_API_KEY;
+
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+
+  // Add Authorization header if API key is provided
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
 
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({
       query,
       variables,
