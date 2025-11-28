@@ -186,25 +186,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     });
   }, [latestNounId, canGoNext]);
 
-  const dateLabel = useMemo(() => {
-    if (!activeAuction || !activeAuction.startTime || activeAuction.startTime === 0n) {
-      // Return a placeholder to prevent layout shift
-      return '—';
-    }
-    const timestamp = toMsSafe(activeAuction.startTime);
-    if (timestamp == null) return '—';
-    if (isNaN(timestamp) || timestamp <= 0) {
-      return '—';
-    }
-    try {
-      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
-        new Date(timestamp)
-      );
-    } catch {
-      return '—';
-    }
-  }, [activeAuction]);
-
   const derivedStatus =
     activeAuction && !activeAuction.settled && displayCountdown <= 0
       ? 'ended'
@@ -216,6 +197,24 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     !settled &&
     auction !== undefined &&
     isCurrentView;
+
+  const dateLabel = useMemo(() => {
+    if (!activeAuction) return '—';
+    const preferredTime =
+      derivedStatus === 'ended' || !isCurrentView
+        ? activeAuction.endTime
+        : activeAuction.startTime;
+    if (!preferredTime || preferredTime === 0n) return '—';
+    const timestamp = toMsSafe(preferredTime);
+    if (timestamp == null || isNaN(timestamp) || timestamp <= 0) return '—';
+    try {
+      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
+        new Date(timestamp)
+      );
+    } catch {
+      return '—';
+    }
+  }, [activeAuction, derivedStatus, isCurrentView]);
 
   const handleOpenBid = useCallback(() => {
     setActionMessage(null);

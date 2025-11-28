@@ -189,7 +189,7 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
               className="rounded-2xl bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 disabled:cursor-default disabled:hover:bg-gray-50"
             >
               <p className="text-xs uppercase tracking-wide text-gray-500">
-                {isCurrentView ? 'Highest bidder' : 'Winning bidder'}
+                {isCurrentView && !isEnded ? 'Highest bidder' : 'Winning bidder'}
               </p>
               <div className="mt-1 flex items-center gap-3">
                 {hasBids ? (
@@ -219,18 +219,20 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
               <p className="text-xs uppercase tracking-wide text-gray-500">Current bid</p>
               <p className="mt-1 text-2xl font-bold text-gray-900">{etherLabel}</p>
             </div>
-            <div className="rounded-2xl bg-gray-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">
-                {isCurrentView ? 'Time left' : 'Ended'}
-              </p>
-              <p className="mt-1 text-2xl font-bold text-gray-900">
-                {isCurrentView
-                  ? status === 'ended'
-                    ? '00:00'
-                    : countdownLabel
-                  : dateLabel || '—'}
-              </p>
-            </div>
+            {!isEnded || !isCurrentView ? (
+              <div className="rounded-2xl bg-gray-50 px-4 py-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  {isCurrentView ? 'Time left' : 'Ended'}
+                </p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {isCurrentView
+                    ? status === 'ended'
+                      ? '00:00'
+                      : countdownLabel
+                    : dateLabel || '—'}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {isCurrentView ? (
