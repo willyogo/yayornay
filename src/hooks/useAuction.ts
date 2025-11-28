@@ -75,40 +75,36 @@ export function useAuction() {
     functionName: 'minBidIncrementPercentage',
   });
 
-  const { data: duration } = useReadContract({
-    address: CONTRACTS.AUCTION_HOUSE,
-    abi: AUCTION_HOUSE_ABI,
-    functionName: 'duration',
-  });
-
   // Parse contract auction data
   const contractAuction: Auction | undefined = useMemo(() => {
     if (!auctionData) return undefined;
 
     try {
       const obj = auctionData as any;
-      const startTime = BigInt(obj.startTime ?? obj.endTime ?? 0);
-      const endTimeField = BigInt(obj.endTime ?? obj.startTime ?? 0);
-      const derivedEndTime =
-        duration && duration > 0n
-          ? startTime + duration
-          : endTimeField;
+      const startTime = BigInt(obj.startTime ?? 0);
+      const endTimeField = BigInt(obj.endTime ?? 0);
 
       return {
         nounId: BigInt(obj.nounId ?? 0),
         amount: BigInt(obj.amount ?? 0),
         startTime,
-        endTime: derivedEndTime,
+        endTime: endTimeField,
         bidder: (obj.bidder ?? ZERO_ADDRESS) as `0x${string}`,
         settled: Boolean(obj.settled),
       };
     } catch {
       return auctionData as Auction;
     }
-  }, [auctionData, duration]);
+  }, [auctionData]);
 
   // Prefer contract timing data when nounIds match; otherwise pick the latest nounId
   const auction: Auction | undefined = useMemo(() => {
+    const pickMinPositive = (...values: (bigint | undefined)[]) => {
+      const positives = values.filter((v): v is bigint => v !== undefined && v > 0n);
+      if (positives.length === 0) return 0n;
+      return positives.reduce((min, v) => (v < min ? v : min), positives[0]);
+    };
+
     if (contractAuction && subgraphAuction) {
       if (contractAuction.nounId === subgraphAuction.nounId) {
         return {
@@ -123,6 +119,9 @@ export function useAuction() {
             contractAuction.amount !== undefined
               ? contractAuction.amount
               : subgraphAuction.amount,
+          startTime: pickMinPositive(contractAuction.startTime, subgraphAuction.startTime),
+          endTime: pickMinPositive(contractAuction.endTime, subgraphAuction.endTime),
+          settled: Boolean(contractAuction.settled || subgraphAuction.settled),
         };
       }
       return contractAuction.nounId > subgraphAuction.nounId
