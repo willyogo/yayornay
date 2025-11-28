@@ -101,17 +101,23 @@ export function useAuction() {
   const auction: Auction | undefined = useMemo(() => {
     if (contractAuction && subgraphAuction) {
       if (contractAuction.nounId === subgraphAuction.nounId) {
+        const subgraphBidder =
+          subgraphAuction.bidder && subgraphAuction.bidder !== ZERO_ADDRESS
+            ? subgraphAuction.bidder
+            : undefined;
+        const subgraphAmount =
+          subgraphAuction.amount && subgraphAuction.amount > 0n
+            ? subgraphAuction.amount
+            : undefined;
+
         return {
           ...contractAuction,
-          // Use subgraph bidder/amount when contract is zero
           bidder:
-            contractAuction.bidder && contractAuction.bidder !== ZERO_ADDRESS
+            subgraphBidder ??
+            (contractAuction.bidder !== ZERO_ADDRESS
               ? contractAuction.bidder
-              : subgraphAuction.bidder,
-          amount:
-            contractAuction.amount && contractAuction.amount > 0n
-              ? contractAuction.amount
-              : subgraphAuction.amount,
+              : contractAuction.bidder),
+          amount: subgraphAmount ?? contractAuction.amount,
           settled: Boolean(contractAuction.settled || subgraphAuction.settled),
         };
       }

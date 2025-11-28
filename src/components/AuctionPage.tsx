@@ -291,20 +291,21 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   );
 
   const handleSettle = useCallback(async () => {
-    if (!auction) return;
+    const targetAuction = activeAuction ?? auction;
+    if (!targetAuction) return;
     if (!isConnected) {
       setActionError('Connect a wallet to settle the auction.');
       return;
     }
 
     // Double-check that auction is actually ended before attempting to settle
-    const auctionStatus = getAuctionStatus(auction);
+    const auctionStatus = derivedStatus ?? getAuctionStatus(targetAuction);
     if (auctionStatus !== 'ended') {
       setActionError('Auction has not ended yet. Cannot settle.');
       return;
     }
 
-    if (auction.settled) {
+    if (targetAuction.settled) {
       setActionError('Auction is already settled.');
       return;
     }
@@ -315,8 +316,8 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       setActionMessage('Submitting settle transaction (gasless)...');
       
       console.log('[Auction] Starting settlement process:', {
-        nounId: auction.nounId.toString(),
-        settled: auction.settled,
+        nounId: targetAuction.nounId.toString(),
+        settled: targetAuction.settled,
         hasPaymaster: sponsoredTx.hasPaymasterSupport,
       });
       
@@ -345,7 +346,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       if (success) {
         setActionMessage('Auction settled successfully!');
         // Store the settled auction's nounId before refetch
-        const settledNounId = Number(auction.nounId);
+        const settledNounId = Number(targetAuction.nounId);
         
         // Refetch to get the new auction
         await refetch();
@@ -373,7 +374,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       setIsSettling(false);
       setTimeout(() => setActionMessage(null), 6000);
     }
-  }, [auction, attemptSettle, isConnected, refetch, sponsoredTx.hasPaymasterSupport]);
+  }, [activeAuction, auction, attemptSettle, derivedStatus, isConnected, refetch, sponsoredTx.hasPaymasterSupport]);
 
   // If viewing the latest auction and it has ended, poll for the next one
   useEffect(() => {
