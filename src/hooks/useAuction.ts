@@ -107,18 +107,30 @@ export function useAuction() {
     }
   }, [auctionData, duration]);
 
-  // Prefer the freshest auction data between subgraph and contract
+  // Prefer contract timing data when nounIds match; otherwise pick the latest nounId
   const auction: Auction | undefined = useMemo(() => {
-    const pickLatest = (a?: Auction, b?: Auction) => {
-      if (!a) return b;
-      if (!b) return a;
-      if (a.nounId === b.nounId) {
-        return Number(a.endTime) >= Number(b.endTime) ? a : b;
+    if (contractAuction && subgraphAuction) {
+      if (contractAuction.nounId === subgraphAuction.nounId) {
+        return {
+          ...subgraphAuction,
+          ...contractAuction,
+          // Prefer on-chain bidder/amount when present
+          bidder:
+            contractAuction.bidder && contractAuction.bidder !== ZERO_ADDRESS
+              ? contractAuction.bidder
+              : subgraphAuction.bidder,
+          amount:
+            contractAuction.amount !== undefined
+              ? contractAuction.amount
+              : subgraphAuction.amount,
+        };
       }
-      return a.nounId > b.nounId ? a : b;
-    };
+      return contractAuction.nounId > subgraphAuction.nounId
+        ? contractAuction
+        : subgraphAuction;
+    }
 
-    return pickLatest(subgraphAuction, contractAuction);
+    return contractAuction ?? subgraphAuction;
   }, [contractAuction, subgraphAuction]);
   const [countdown, setCountdown] = useState(0);
 
@@ -130,7 +142,12 @@ export function useAuction() {
     }
 
     const updateCountdown = () => {
-      const remaining = Math.max(0, Number(auction.endTime) * 1000 - Date.now());
+      const endTimeSec = Number(auction.endTime);
+      if (!Number.isFinite(endTimeSec)) {
+        setCountdown(0);
+        return;
+      }
+      const remaining = Math.max(0, endTimeSec * 1000 - Date.now());
       setCountdown(remaining);
     };
 

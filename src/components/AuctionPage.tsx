@@ -128,6 +128,14 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     })();
   }, [viewNounId, publicClient]);
 
+  const toMsSafe = (seconds: bigint | number) => {
+    const secNumber = Number(seconds);
+    if (!Number.isFinite(secNumber)) return null;
+    const ms = secNumber * 1000;
+    if (!Number.isFinite(ms)) return null;
+    return ms;
+  };
+
   // Update countdown for display auction
   useEffect(() => {
     if (!displayAuction || displayAuction.endTime === 0n) {
@@ -136,7 +144,11 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     }
     
     const updateCountdown = () => {
-      const endTimeMs = Number(displayAuction.endTime) * 1000;
+      const endTimeMs = toMsSafe(displayAuction.endTime);
+      if (endTimeMs == null) {
+        setDisplayCountdown(0);
+        return;
+      }
       const remaining = endTimeMs - Date.now();
       setDisplayCountdown(Math.max(0, remaining));
     };
@@ -180,7 +192,8 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       // Return a placeholder to prevent layout shift
       return '—';
     }
-    const timestamp = Number(activeAuction.startTime) * 1000;
+    const timestamp = toMsSafe(activeAuction.startTime);
+    if (timestamp == null) return '—';
     if (isNaN(timestamp) || timestamp <= 0) {
       return '—';
     }

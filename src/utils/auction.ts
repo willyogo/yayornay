@@ -25,6 +25,7 @@ export const getAuctionStatus = (auction?: Auction): 'loading' | 'pending' | 'ac
   const now = Date.now();
   const startTimeMs = Number(auction.startTime) * 1000;
   const endTimeMs = Number(auction.endTime) * 1000;
+  if (!Number.isFinite(startTimeMs) || !Number.isFinite(endTimeMs)) return 'loading';
   // Check if startTime is valid (not 0)
   if (auction.startTime === 0n || startTimeMs === 0) return 'loading';
   if (startTimeMs > now) return 'pending';
@@ -41,4 +42,3 @@ export const formatCountdown = (targetMs: number) => {
   const hh = hours > 0 ? `${hours.toString().padStart(2, '0')}:` : '';
   return `${hh}${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
-
