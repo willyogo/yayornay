@@ -205,7 +205,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     }
   }, [activeAuction]);
 
-  const isAuctionActive = status === 'active';
   const derivedStatus =
     activeAuction && !activeAuction.settled && displayCountdown <= 0
       ? 'ended'
