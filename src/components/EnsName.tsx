@@ -5,6 +5,7 @@ interface EnsNameProps {
   className?: string;
   showAvatar?: boolean;
   avatarSize?: 'sm' | 'md' | 'lg';
+  shortStart?: number;
 }
 
 const avatarSizes = {
@@ -13,15 +14,15 @@ const avatarSizes = {
   lg: 'w-8 h-8',
 };
 
-export function EnsName({ address, className = '', showAvatar = false, avatarSize = 'sm' }: EnsNameProps) {
-  const { displayName, avatar, isLoading } = useEnsProfile(address);
+export function EnsName({ address, className = '', showAvatar = false, avatarSize = 'sm', shortStart = 6 }: EnsNameProps) {
+  const { displayName, avatar, isLoading } = useEnsProfile(address, shortStart);
 
   if (isLoading) {
     return <span className={`text-gray-400 ${className}`}>Loading...</span>;
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5 min-w-0">
       {showAvatar && avatar && (
         <img
           src={avatar}
@@ -29,7 +30,7 @@ export function EnsName({ address, className = '', showAvatar = false, avatarSiz
           className={`${avatarSizes[avatarSize]} rounded-full`}
         />
       )}
-      <span className={className}>{displayName}</span>
+      <span className={`block truncate ${className}`} title={displayName}>{displayName}</span>
     </span>
   );
 }

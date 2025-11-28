@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAccount, useConnect } from 'wagmi';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
@@ -45,30 +45,33 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   const [viewNounId, setViewNounId] = useState<number | null>(null);
   const [displayAuction, setDisplayAuction] = useState<Auction | undefined>();
   const [displayCountdown, setDisplayCountdown] = useState(0);
+  const lastLatestNounId = useRef<number | null>(null);
+  const toMsSafe = (seconds: bigint | number) => {
+    const secNumber = Number(seconds);
+    if (!Number.isFinite(secNumber)) return null;
+    const ms = secNumber * 1000;
+    if (!Number.isFinite(ms)) return null;
+    return ms;
+  };
 
   const sponsoredTx = useSponsoredTransaction();
 
-  // Update viewNounId when current auction changes (only if not viewing a past auction)
+  // Update viewNounId when current auction changes
   useEffect(() => {
     if (!auction) return;
     const currentNounId = Number(auction.nounId);
-    
-    // Only auto-update if:
-    // 1. viewNounId is null (initial load)
-    // 2. viewNounId is >= currentNounId (viewing current or future auction)
-    // Don't override if user is viewing a past auction (viewNounId < currentNounId)
     setViewNounId((prev) => {
-      if (prev == null) {
+      const wasViewingLatest =
+        prev == null || prev === lastLatestNounId.current;
+      const atOrAhead = prev != null && prev >= currentNounId;
+      const nextView = wasViewingLatest || atOrAhead ? currentNounId : prev;
+
+      if (nextView === currentNounId) {
         setDisplayAuction(auction);
-        return currentNounId;
       }
-      // If viewing current or future auction, update to current
-      if (prev >= currentNounId) {
-        setDisplayAuction(auction);
-        return currentNounId;
-      }
-      // Otherwise, keep the past auction view (don't update displayAuction here)
-      return prev;
+
+      lastLatestNounId.current = currentNounId;
+      return nextView;
     });
   }, [auction]);
 
@@ -132,15 +135,20 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     })();
   }, [viewNounId, publicClient]);
 
-  // Update countdown for display auction
+  // Update countdown for whichever auction is shown (past or current)
   useEffect(() => {
-    if (!displayAuction || displayAuction.endTime === 0n) {
+    const target = displayAuction ?? auction;
+    if (!target || target.endTime === 0n) {
       setDisplayCountdown(0);
       return;
     }
     
     const updateCountdown = () => {
-      const endTimeMs = Number(displayAuction.endTime) * 1000;
+      const endTimeMs = toMsSafe(target.endTime);
+      if (endTimeMs == null) {
+        setDisplayCountdown(0);
+        return;
+      }
       const remaining = endTimeMs - Date.now();
       setDisplayCountdown(Math.max(0, remaining));
     };
@@ -148,7 +156,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1_000);
     return () => clearInterval(interval);
-  }, [displayAuction]);
+  }, [displayAuction, auction]);
 
   const handleConnectWallet = useCallback(() => {
     if (connectors && connectors.length > 0) {
@@ -156,31 +164,58 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     }
   }, [connect, connectors]);
 
+  const latestNounId = auction ? Number(auction.nounId) : null;
   const activeAuction = displayAuction ?? auction;
+  const canGoPrev = viewNounId != null && viewNounId > 0;
+  const canGoNext = latestNounId != null && viewNounId != null && viewNounId < latestNounId;
+  const isCurrentView = latestNounId != null && viewNounId === latestNounId;
 
   const handlePrev = useCallback(() => {
-    if (viewNounId == null) return;
-    setViewNounId(Math.max(0, viewNounId - 1));
-  }, [viewNounId]);
+    if (!canGoPrev) return;
+    setViewNounId((prev) => {
+      if (prev == null || prev <= 0) return prev;
+      return prev - 1;
+    });
+  }, [canGoPrev]);
 
   const handleNext = useCallback(() => {
-    if (viewNounId == null || !auction) return;
-    if (viewNounId >= Number(auction.nounId)) return;
-    setViewNounId(viewNounId + 1);
-  }, [viewNounId, auction]);
+    if (latestNounId == null || !canGoNext) return;
+    setViewNounId((prev) => {
+      if (prev == null) return latestNounId;
+      if (prev >= latestNounId) return prev;
+      return prev + 1;
+    });
+  }, [latestNounId, canGoNext]);
 
-  const canGoNext = auction ? (viewNounId ?? 0) < Number(auction.nounId) : false;
-  const isCurrentView = viewNounId === (auction ? Number(auction.nounId) : null);
+  const viewingCurrentAuction =
+    activeAuction && auction && activeAuction.nounId === auction.nounId && isCurrentView;
+
+  const derivedStatus = (() => {
+    if (!activeAuction) return status;
+    if (activeAuction.settled) return 'ended';
+    // When viewing the current on-chain auction, trust the hook's status
+    if (viewingCurrentAuction) return status;
+    // For past auctions, fall back to countdown
+    if (displayCountdown <= 0) return 'ended';
+    return status;
+  })();
+  const isAuctionActive = derivedStatus === 'active';
+  const canBid =
+    isConnected &&
+    isAuctionActive &&
+    !settled &&
+    auction !== undefined &&
+    isCurrentView;
 
   const dateLabel = useMemo(() => {
-    if (!activeAuction || !activeAuction.startTime || activeAuction.startTime === 0n) {
-      // Return a placeholder to prevent layout shift
-      return '—';
-    }
-    const timestamp = Number(activeAuction.startTime) * 1000;
-    if (isNaN(timestamp) || timestamp <= 0) {
-      return '—';
-    }
+    if (!activeAuction) return '—';
+    const preferredTime =
+      derivedStatus === 'ended' || !isCurrentView
+        ? activeAuction.endTime
+        : activeAuction.startTime;
+    if (!preferredTime || preferredTime === 0n) return '—';
+    const timestamp = toMsSafe(preferredTime);
+    if (timestamp == null || isNaN(timestamp) || timestamp <= 0) return '—';
     try {
       return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
         new Date(timestamp)
@@ -188,10 +223,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     } catch {
       return '—';
     }
-  }, [activeAuction]);
-
-  const isAuctionActive = status === 'active';
-  const canBid = isConnected && isAuctionActive && !settled && auction !== undefined && isCurrentView;
+  }, [activeAuction, derivedStatus, isCurrentView]);
 
   const handleOpenBid = useCallback(() => {
     setActionMessage(null);
@@ -268,20 +300,21 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   );
 
   const handleSettle = useCallback(async () => {
-    if (!auction) return;
+    const targetAuction = activeAuction ?? auction;
+    if (!targetAuction) return;
     if (!isConnected) {
       setActionError('Connect a wallet to settle the auction.');
       return;
     }
 
     // Double-check that auction is actually ended before attempting to settle
-    const auctionStatus = getAuctionStatus(auction);
+    const auctionStatus = derivedStatus ?? getAuctionStatus(targetAuction);
     if (auctionStatus !== 'ended') {
       setActionError('Auction has not ended yet. Cannot settle.');
       return;
     }
 
-    if (auction.settled) {
+    if (targetAuction.settled) {
       setActionError('Auction is already settled.');
       return;
     }
@@ -292,8 +325,8 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       setActionMessage('Submitting settle transaction (gasless)...');
       
       console.log('[Auction] Starting settlement process:', {
-        nounId: auction.nounId.toString(),
-        settled: auction.settled,
+        nounId: targetAuction.nounId.toString(),
+        settled: targetAuction.settled,
         hasPaymaster: sponsoredTx.hasPaymasterSupport,
       });
       
@@ -322,7 +355,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       if (success) {
         setActionMessage('Auction settled successfully!');
         // Store the settled auction's nounId before refetch
-        const settledNounId = Number(auction.nounId);
+        const settledNounId = Number(targetAuction.nounId);
         
         // Refetch to get the new auction
         await refetch();
@@ -350,7 +383,16 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
       setIsSettling(false);
       setTimeout(() => setActionMessage(null), 6000);
     }
-  }, [auction, attemptSettle, isConnected, refetch, sponsoredTx.hasPaymasterSupport]);
+  }, [activeAuction, auction, attemptSettle, derivedStatus, isConnected, refetch, sponsoredTx.hasPaymasterSupport]);
+
+  // If viewing the latest auction and it has ended, poll for the next one
+  useEffect(() => {
+    if (!isCurrentView || status !== 'ended') return;
+    const interval = setInterval(() => {
+      refetch();
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [isCurrentView, status, refetch]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -373,7 +415,9 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
             onPrev={handlePrev}
             onNext={handleNext}
             canGoNext={canGoNext}
+            canGoPrev={canGoPrev}
             currentWalletAddress={address}
+            statusOverride={derivedStatus}
           />
 
           {/* Info Cards */}

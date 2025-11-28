@@ -1,7 +1,9 @@
 import { CONTRACTS } from '../config/contracts';
+import { AI_AGENT_ADDRESS } from '../config/constants';
 
 const DEFAULT_YAYNAY_SUBGRAPH_URL =
-  'https://gateway.thegraph.com/api/subgraphs/id/Fr7FVqJYVuZRLudFVPr9mAqspPosVawkXrejKPNarQks';
+  'https://api.goldsky.com/api/public/project_cm33ek8kjx6pz010i2c3w8z25/subgraphs/nouns-builder-base-mainnet/latest/gn';
+const AGENT_PROPOSER_ADDRESS = AI_AGENT_ADDRESS.toLowerCase();
 
 const PROPOSALS_QUERY = `
 query proposals($where: Proposal_filter, $first: Int!, $skip: Int) {
@@ -104,6 +106,11 @@ const getSubgraphEndpoint = () =>
   import.meta.env.VITE_PROPOSALS_SUBGRAPH_URL ||
   DEFAULT_YAYNAY_SUBGRAPH_URL;
 
+const filterAgentProposals = (proposals: SubgraphProposal[]) =>
+  proposals.filter(
+    (proposal) => proposal.proposer?.toLowerCase() === AGENT_PROPOSER_ADDRESS
+  );
+
 async function gql<T>(variables: Record<string, unknown>, query: string = PROPOSALS_QUERY): Promise<T> {
   const endpoint = getSubgraphEndpoint();
   const apiKey = import.meta.env.VITE_THE_GRAPH_API_KEY;
@@ -156,12 +163,14 @@ export async function fetchLatestProposalTimestamp(): Promise<number | null> {
     const data = await gql<{ proposals: SubgraphProposal[] }>({ 
       where,
       first: 1,
-      orderBy: 'timeCreated',
-      orderDirection: 'desc'
+      skip: 0
     });
 
-    if (data.proposals && data.proposals.length > 0) {
-      const p = data.proposals[0];
+    // Filter by AI agent address and get the latest
+    const filtered = filterAgentProposals(data.proposals || []);
+    
+    if (filtered.length > 0) {
+      const p = filtered[0];
       // Return voteStart if available, otherwise timeCreated
       return Number(p.voteStart || p.timeCreated);
     }
@@ -197,7 +206,7 @@ export async function fetchActiveProposalsFromSubgraph(
     skip,
   });
 
-  return data.proposals || [];
+  return filterAgentProposals(data.proposals || []);
 }
 
 /**
@@ -226,7 +235,7 @@ export async function fetchPendingProposalsFromSubgraph(
     skip,
   });
 
-  return data.proposals || [];
+  return filterAgentProposals(data.proposals || []);
 }
 
 /**

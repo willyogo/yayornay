@@ -76,10 +76,14 @@ export const CONTRACTS = {
 // DAO address (token contract) used for subgraph filtering
 export const DAO_ADDRESS = CONTRACTS.NFT;
 
+// Address of the AI agent allowed to submit proposals
+export const AI_AGENT_ADDRESS = '0x84c78b7c8e321b939534a929d9bf17a0a654518f';
+
 // Export all constants as a single object for convenience
 export const CONSTANTS = {
   CHAIN: CHAIN_CONFIG,
   CONTRACTS,
   DAO_ADDRESS,
+  AI_AGENT_ADDRESS,
   CDP_NETWORKS,
 } as const;

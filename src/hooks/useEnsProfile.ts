@@ -12,7 +12,7 @@ interface ENSDataResponse {
  * Hook to resolve ENS for a given address using ensdata.net API
  * Returns primary ENS name and avatar from Ethereum mainnet
  */
-export function useEnsProfile(address?: string) {
+export function useEnsProfile(address?: string, shortStart = 6) {
   const { data, isLoading } = useQuery<ENSDataResponse>({
     queryKey: ['ens', address],
     queryFn: async () => {
@@ -39,7 +39,7 @@ export function useEnsProfile(address?: string) {
   const formatAddress = (addr: string) => {
     if (!addr) return '';
     if (addr.length < 10) return addr;
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+    return `${addr.slice(0, shortStart)}...${addr.slice(-4)}`;
   };
 
   const ensName = data?.ens_primary || data?.ens;

@@ -58,13 +58,29 @@ async function gql<T>(query: string, variables?: Record<string, any>): Promise<T
 }
 
 /**
- * Fetch the latest auction from the subgraph
+ * Fetch the latest auction from the subgraph for our DAO
+ * Some public endpoints don't support id_starts_with filters on ID,
+ * so we fetch a small window and filter client-side by DAO prefix.
  */
 export async function fetchLatestAuction(): Promise<SubgraphAuction | null> {
+  const daoPrefix = `${DAO_ADDRESS.toLowerCase()}:`;
+  const pickLatestForDao = (auctions?: SubgraphAuction[]) => {
+    if (!auctions || auctions.length === 0) return null;
+    const filtered = auctions.filter((a) =>
+      a.id.toLowerCase().startsWith(daoPrefix)
+    );
+    return filtered[0] ?? null;
+  };
+
   try {
     const data = await gql<{ auctions: SubgraphAuction[] }>(
       `query LatestAuction {
-        auctions(first: 1, orderBy: startTime, orderDirection: desc, where: {settled: false}) {
+        auctions(
+          first: 20
+          orderBy: startTime
+          orderDirection: desc
+          where: { settled: false }
+        ) {
           id
           startTime
           endTime
@@ -81,30 +97,34 @@ export async function fetchLatestAuction(): Promise<SubgraphAuction | null> {
       }`
     );
     
-    // If no active auction, get the latest settled one
-    if (!data.auctions || data.auctions.length === 0) {
-      const settledData = await gql<{ auctions: SubgraphAuction[] }>(
-        `query LatestSettledAuction {
-          auctions(first: 1, orderBy: startTime, orderDirection: desc, where: {settled: true}) {
-            id
-            startTime
-            endTime
-            settled
-            highestBid {
-              amount
-              bidder
-            }
-            winningBid {
-              amount
-              bidder
-            }
+    const latest = pickLatestForDao(data.auctions);
+    if (latest) return latest;
+
+    const settledData = await gql<{ auctions: SubgraphAuction[] }>(
+      `query LatestSettledAuction {
+        auctions(
+          first: 20
+          orderBy: startTime
+          orderDirection: desc
+          where: { settled: true }
+        ) {
+          id
+          startTime
+          endTime
+          settled
+          highestBid {
+            amount
+            bidder
           }
-        }`
-      );
-      return settledData.auctions?.[0] ?? null;
-    }
-    
-    return data.auctions[0];
+          winningBid {
+            amount
+            bidder
+          }
+        }
+      }`
+    );
+
+    return pickLatestForDao(settledData.auctions);
   } catch (error) {
     console.warn('Failed to fetch latest auction from subgraph:', error);
     return null;
@@ -141,7 +161,10 @@ export async function fetchAuctionById(
       }`,
       { id: compoundId }
     );
-    return data.auctions?.[0] ?? null;
+    const match = data.auctions?.find((a) =>
+      a.id.toLowerCase().startsWith(`${DAO_ADDRESS.toLowerCase()}:`)
+    );
+    return match ?? null;
   } catch (error) {
     console.warn(`Failed to fetch auction ${nounId} from subgraph:`, error);
     return null;
@@ -154,4 +177,3 @@ export async function fetchAuctionById(
 export function isSubgraphConfigured(): boolean {
   return getSubgraphEndpoint() !== null;
 }
-

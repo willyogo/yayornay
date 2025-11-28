@@ -4,6 +4,8 @@ import { CONTRACTS, AUCTION_HOUSE_ABI, type Auction } from '../config/contracts'
 import { formatEth, getAuctionStatus, formatCountdown } from '../utils/auction';
 import { fetchLatestAuction, isSubgraphConfigured } from '../lib/subgraph';
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 export function useAuction() {
   const [subgraphAuction, setSubgraphAuction] = useState<Auction | undefined>();
   const [subgraphLoading, setSubgraphLoading] = useState(true);
@@ -79,41 +81,73 @@ export function useAuction() {
     functionName: 'duration',
   });
 
-  // Prefer subgraph data if available, otherwise parse contract data
-  // Parse auction data: contract's "endTime" field actually contains the startTime
-  // Calculate actual endTime as startTime + duration
-  const auction: Auction | undefined = useMemo(() => {
-    // Prefer subgraph data if available
-    if (subgraphAuction) {
-      return subgraphAuction;
-    }
-
+  // Parse contract auction data
+  const contractAuction: Auction | undefined = useMemo(() => {
     if (!auctionData) return undefined;
-    
+
     try {
       const obj = auctionData as any;
-      const contractEndTime = BigInt(obj.endTime || 0);
-      
-      // Contract's "endTime" field contains the actual startTime
-      const actualStartTime = contractEndTime;
-      
-      // Calculate actual endTime as startTime + duration
-      const actualEndTime = duration && duration > 0n
-        ? contractEndTime + duration
-        : contractEndTime; // Fallback if no duration
-      
+      const rawEnd = BigInt(obj.endTime ?? 0); // holds startTime in Builder contracts
+      const rawStart = BigInt(obj.startTime ?? 0);
+      const startTime = rawEnd > 0n ? rawEnd : rawStart;
+      const durationVal = typeof duration === 'bigint' ? duration : 0n;
+      const endTime =
+        durationVal > 0n && startTime > 0n
+          ? startTime + durationVal
+          : rawStart > 0n
+          ? rawStart
+          : rawEnd;
+
       return {
-        nounId: BigInt(obj.nounId || 0),
-        amount: BigInt(obj.amount || 0),
-        startTime: actualStartTime,
-        endTime: actualEndTime,
-        bidder: obj.bidder as `0x${string}`,
+        nounId: BigInt(obj.nounId ?? 0),
+        amount: BigInt(obj.amount ?? 0),
+        startTime,
+        endTime,
+        bidder: (obj.bidder ?? ZERO_ADDRESS) as `0x${string}`,
         settled: Boolean(obj.settled),
       };
     } catch {
       return auctionData as Auction;
     }
-  }, [subgraphAuction, auctionData, duration]);
+  }, [auctionData, duration]);
+
+  // Prefer contract timing data when nounIds match; otherwise pick the latest nounId
+  const auction: Auction | undefined = useMemo(() => {
+    if (contractAuction && subgraphAuction) {
+      if (contractAuction.nounId === subgraphAuction.nounId) {
+        const subgraphBidder =
+          subgraphAuction.bidder && subgraphAuction.bidder !== ZERO_ADDRESS
+            ? subgraphAuction.bidder
+            : undefined;
+        const subgraphAmount =
+          subgraphAuction.amount && subgraphAuction.amount > 0n
+            ? subgraphAuction.amount
+            : undefined;
+        const mergedStart =
+          subgraphAuction.startTime && subgraphAuction.startTime > 0n
+            ? subgraphAuction.startTime
+            : contractAuction.startTime;
+        const mergedEnd =
+          subgraphAuction.endTime && subgraphAuction.endTime > 0n
+            ? subgraphAuction.endTime
+            : contractAuction.endTime;
+
+        return {
+          ...contractAuction,
+          bidder: subgraphBidder ?? contractAuction.bidder,
+          amount: subgraphAmount ?? contractAuction.amount,
+          startTime: mergedStart,
+          endTime: mergedEnd,
+          settled: Boolean(contractAuction.settled || subgraphAuction.settled),
+        };
+      }
+      return contractAuction.nounId > subgraphAuction.nounId
+        ? contractAuction
+        : subgraphAuction;
+    }
+
+    return contractAuction ?? subgraphAuction;
+  }, [contractAuction, subgraphAuction]);
   const [countdown, setCountdown] = useState(0);
 
   // Update countdown every second
@@ -124,7 +158,12 @@ export function useAuction() {
     }
 
     const updateCountdown = () => {
-      const remaining = Math.max(0, Number(auction.endTime) * 1000 - Date.now());
+      const endTimeSec = Number(auction.endTime);
+      if (!Number.isFinite(endTimeSec)) {
+        setCountdown(0);
+        return;
+      }
+      const remaining = Math.max(0, endTimeSec * 1000 - Date.now());
       setCountdown(remaining);
     };
 
@@ -163,7 +202,6 @@ export function useAuction() {
     reservePrice: reservePrice ? formatEth(reservePrice) : '0',
     reservePriceWei: reservePrice ?? 0n,
     minIncrementPct: typeof minIncrementPct === 'number' ? minIncrementPct : 5,
-    duration: duration ?? 0n,
     minRequiredWei,
     status,
     isLoading,
@@ -198,4 +236,3 @@ export function useAuction() {
     }, [refetch]),
   };
 }
-
