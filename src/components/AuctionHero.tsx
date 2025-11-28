@@ -26,6 +26,7 @@ interface AuctionHeroProps {
   canGoNext?: boolean;
   canGoPrev?: boolean;
   currentWalletAddress?: `0x${string}`;
+  statusOverride?: 'loading' | 'pending' | 'active' | 'ended';
 }
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -47,9 +48,14 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   canGoNext = false,
   canGoPrev = true,
   currentWalletAddress,
+  statusOverride,
 }) => {
   const { name: nftCollectionName, isLoading: isLoadingName } = useNftName();
-  const status = getAuctionStatus(auction);
+  const baseStatus = statusOverride ?? getAuctionStatus(auction);
+  const status =
+    baseStatus !== 'ended' && !auction?.settled && countdownMs <= 0
+      ? 'ended'
+      : baseStatus;
   const nounId = auction ? Number(auction.nounId) : undefined;
   const hasBids = auction && auction.bidder !== ZERO_ADDRESS;
   const countdownLabel = formatCountdown(countdownMs);

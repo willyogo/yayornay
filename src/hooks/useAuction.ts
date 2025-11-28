@@ -99,28 +99,19 @@ export function useAuction() {
 
   // Prefer contract timing data when nounIds match; otherwise pick the latest nounId
   const auction: Auction | undefined = useMemo(() => {
-    const pickMinPositive = (...values: (bigint | undefined)[]) => {
-      const positives = values.filter((v): v is bigint => v !== undefined && v > 0n);
-      if (positives.length === 0) return 0n;
-      return positives.reduce((min, v) => (v < min ? v : min), positives[0]);
-    };
-
     if (contractAuction && subgraphAuction) {
       if (contractAuction.nounId === subgraphAuction.nounId) {
         return {
-          ...subgraphAuction,
           ...contractAuction,
-          // Prefer on-chain bidder/amount when present
+          // Use subgraph bidder/amount when contract is zero
           bidder:
             contractAuction.bidder && contractAuction.bidder !== ZERO_ADDRESS
               ? contractAuction.bidder
               : subgraphAuction.bidder,
           amount:
-            contractAuction.amount !== undefined
+            contractAuction.amount && contractAuction.amount > 0n
               ? contractAuction.amount
               : subgraphAuction.amount,
-          startTime: pickMinPositive(contractAuction.startTime, subgraphAuction.startTime),
-          endTime: pickMinPositive(contractAuction.endTime, subgraphAuction.endTime),
           settled: Boolean(contractAuction.settled || subgraphAuction.settled),
         };
       }

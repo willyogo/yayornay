@@ -46,6 +46,13 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   const [displayAuction, setDisplayAuction] = useState<Auction | undefined>();
   const [displayCountdown, setDisplayCountdown] = useState(0);
   const lastLatestNounId = useRef<number | null>(null);
+  const toMsSafe = (seconds: bigint | number) => {
+    const secNumber = Number(seconds);
+    if (!Number.isFinite(secNumber)) return null;
+    const ms = secNumber * 1000;
+    if (!Number.isFinite(ms)) return null;
+    return ms;
+  };
 
   const sponsoredTx = useSponsoredTransaction();
 
@@ -128,14 +135,6 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     })();
   }, [viewNounId, publicClient]);
 
-  const toMsSafe = (seconds: bigint | number) => {
-    const secNumber = Number(seconds);
-    if (!Number.isFinite(secNumber)) return null;
-    const ms = secNumber * 1000;
-    if (!Number.isFinite(ms)) return null;
-    return ms;
-  };
-
   // Update countdown for display auction
   useEffect(() => {
     if (!displayAuction || displayAuction.endTime === 0n) {
@@ -207,7 +206,17 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
   }, [activeAuction]);
 
   const isAuctionActive = status === 'active';
-  const canBid = isConnected && isAuctionActive && !settled && auction !== undefined && isCurrentView;
+  const derivedStatus =
+    activeAuction && !activeAuction.settled && displayCountdown <= 0
+      ? 'ended'
+      : status;
+  const isAuctionActive = derivedStatus === 'active';
+  const canBid =
+    isConnected &&
+    isAuctionActive &&
+    !settled &&
+    auction !== undefined &&
+    isCurrentView;
 
   const handleOpenBid = useCallback(() => {
     setActionMessage(null);
@@ -400,6 +409,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
             canGoNext={canGoNext}
             canGoPrev={canGoPrev}
             currentWalletAddress={address}
+            statusOverride={derivedStatus}
           />
 
           {/* Info Cards */}
