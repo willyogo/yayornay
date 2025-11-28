@@ -58,13 +58,19 @@ async function gql<T>(query: string, variables?: Record<string, any>): Promise<T
 }
 
 /**
- * Fetch the latest auction from the subgraph
+ * Fetch the latest auction from the subgraph for our DAO
  */
 export async function fetchLatestAuction(): Promise<SubgraphAuction | null> {
+  const daoPrefix = `${DAO_ADDRESS.toLowerCase()}:`;
   try {
     const data = await gql<{ auctions: SubgraphAuction[] }>(
-      `query LatestAuction {
-        auctions(first: 1, orderBy: startTime, orderDirection: desc, where: {settled: false}) {
+      `query LatestAuction($daoPrefix: String!) {
+        auctions(
+          first: 1
+          orderBy: startTime
+          orderDirection: desc
+          where: { settled: false, id_starts_with: $daoPrefix }
+        ) {
           id
           startTime
           endTime
@@ -78,14 +84,20 @@ export async function fetchLatestAuction(): Promise<SubgraphAuction | null> {
             bidder
           }
         }
-      }`
+      }`,
+      { daoPrefix }
     );
     
-    // If no active auction, get the latest settled one
+    // If no active auction, get the latest settled one for this DAO
     if (!data.auctions || data.auctions.length === 0) {
       const settledData = await gql<{ auctions: SubgraphAuction[] }>(
-        `query LatestSettledAuction {
-          auctions(first: 1, orderBy: startTime, orderDirection: desc, where: {settled: true}) {
+        `query LatestSettledAuction($daoPrefix: String!) {
+          auctions(
+            first: 1
+            orderBy: startTime
+            orderDirection: desc
+            where: { settled: true, id_starts_with: $daoPrefix }
+          ) {
             id
             startTime
             endTime
@@ -99,7 +111,8 @@ export async function fetchLatestAuction(): Promise<SubgraphAuction | null> {
               bidder
             }
           }
-        }`
+        }`,
+        { daoPrefix }
       );
       return settledData.auctions?.[0] ?? null;
     }
@@ -154,4 +167,3 @@ export async function fetchAuctionById(
 export function isSubgraphConfigured(): boolean {
   return getSubgraphEndpoint() !== null;
 }
-
