@@ -94,32 +94,29 @@ const NounImage: React.FC<Props> = ({ nounId, className, priority }) => {
 
   const alt = `Noun ${nounIdBigInt.toString()}`;
 
-  if (isLoading || !tokenImage) {
-    return (
-      <img
-        src="/noun-loading-skull.gif"
-        alt="Loading Noun artwork"
-        className={className}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-      />
-    );
-  }
-
-  const isDataUri = tokenImage.startsWith('data:');
+  const isDataUri = tokenImage?.startsWith('data:');
 
   return (
-    <img
-      src={tokenImage}
-      alt={alt}
-      className={className}
-      loading={priority ? 'eager' : 'lazy'}
-      decoding="async"
-      aria-hidden={false}
-      style={{ imageRendering: isDataUri ? 'pixelated' : 'auto' }}
-    />
+    <div className={`relative ${className || ''}`}>
+      <img
+        src="/images/loading-skull-noun.d7293d44.gif"
+        alt="Loading Noun artwork"
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ objectFit: 'cover' }}
+      />
+      {tokenImage && (
+        <img
+          src={tokenImage}
+          alt={alt}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          aria-hidden={false}
+          style={{ imageRendering: isDataUri ? 'pixelated' : 'auto' }}
+        />
+      )}
+    </div>
   );
 };
 
 export default NounImage;
-
