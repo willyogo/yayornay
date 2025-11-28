@@ -75,27 +75,41 @@ export function useAuction() {
     functionName: 'minBidIncrementPercentage',
   });
 
+  const { data: duration } = useReadContract({
+    address: CONTRACTS.AUCTION_HOUSE,
+    abi: AUCTION_HOUSE_ABI,
+    functionName: 'duration',
+  });
+
   // Parse contract auction data
   const contractAuction: Auction | undefined = useMemo(() => {
     if (!auctionData) return undefined;
 
     try {
       const obj = auctionData as any;
-      const startTime = BigInt(obj.startTime ?? 0);
-      const endTimeField = BigInt(obj.endTime ?? 0);
+      const rawEnd = BigInt(obj.endTime ?? 0); // holds startTime in Builder contracts
+      const rawStart = BigInt(obj.startTime ?? 0);
+      const startTime = rawEnd > 0n ? rawEnd : rawStart;
+      const durationVal = typeof duration === 'bigint' ? duration : 0n;
+      const endTime =
+        durationVal > 0n && startTime > 0n
+          ? startTime + durationVal
+          : rawStart > 0n
+          ? rawStart
+          : rawEnd;
 
       return {
         nounId: BigInt(obj.nounId ?? 0),
         amount: BigInt(obj.amount ?? 0),
         startTime,
-        endTime: endTimeField,
+        endTime,
         bidder: (obj.bidder ?? ZERO_ADDRESS) as `0x${string}`,
         settled: Boolean(obj.settled),
       };
     } catch {
       return auctionData as Auction;
     }
-  }, [auctionData]);
+  }, [auctionData, duration]);
 
   // Prefer contract timing data when nounIds match; otherwise pick the latest nounId
   const auction: Auction | undefined = useMemo(() => {
@@ -109,15 +123,21 @@ export function useAuction() {
           subgraphAuction.amount && subgraphAuction.amount > 0n
             ? subgraphAuction.amount
             : undefined;
+        const mergedStart =
+          subgraphAuction.startTime && subgraphAuction.startTime > 0n
+            ? subgraphAuction.startTime
+            : contractAuction.startTime;
+        const mergedEnd =
+          subgraphAuction.endTime && subgraphAuction.endTime > 0n
+            ? subgraphAuction.endTime
+            : contractAuction.endTime;
 
         return {
           ...contractAuction,
-          bidder:
-            subgraphBidder ??
-            (contractAuction.bidder !== ZERO_ADDRESS
-              ? contractAuction.bidder
-              : contractAuction.bidder),
+          bidder: subgraphBidder ?? contractAuction.bidder,
           amount: subgraphAmount ?? contractAuction.amount,
+          startTime: mergedStart,
+          endTime: mergedEnd,
           settled: Boolean(contractAuction.settled || subgraphAuction.settled),
         };
       }

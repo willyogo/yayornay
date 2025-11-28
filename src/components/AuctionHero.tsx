@@ -53,9 +53,13 @@ const AuctionHero: React.FC<AuctionHeroProps> = ({
   const { name: nftCollectionName, isLoading: isLoadingName } = useNftName();
   const baseStatus = statusOverride ?? getAuctionStatus(auction);
   const status =
-    baseStatus !== 'ended' && !auction?.settled && countdownMs <= 0
-      ? 'ended'
-      : baseStatus;
+    (() => {
+      if (!auction) return baseStatus;
+      if (auction.settled) return 'ended';
+      if (baseStatus === 'active' || baseStatus === 'pending') return baseStatus;
+      if (countdownMs <= 0) return 'ended';
+      return baseStatus;
+    })();
   const nounId = auction ? Number(auction.nounId) : undefined;
   const hasBids = auction && auction.bidder !== ZERO_ADDRESS;
   const countdownLabel = formatCountdown(countdownMs);

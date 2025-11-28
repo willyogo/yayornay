@@ -135,15 +135,16 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     })();
   }, [viewNounId, publicClient]);
 
-  // Update countdown for display auction
+  // Update countdown for whichever auction is shown (past or current)
   useEffect(() => {
-    if (!displayAuction || displayAuction.endTime === 0n) {
+    const target = displayAuction ?? auction;
+    if (!target || target.endTime === 0n) {
       setDisplayCountdown(0);
       return;
     }
     
     const updateCountdown = () => {
-      const endTimeMs = toMsSafe(displayAuction.endTime);
+      const endTimeMs = toMsSafe(target.endTime);
       if (endTimeMs == null) {
         setDisplayCountdown(0);
         return;
@@ -155,7 +156,7 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1_000);
     return () => clearInterval(interval);
-  }, [displayAuction]);
+  }, [displayAuction, auction]);
 
   const handleConnectWallet = useCallback(() => {
     if (connectors && connectors.length > 0) {
@@ -186,10 +187,18 @@ export function AuctionPage({ onSelectView, currentView }: AuctionPageProps) {
     });
   }, [latestNounId, canGoNext]);
 
-  const derivedStatus =
-    activeAuction && !activeAuction.settled && displayCountdown <= 0
-      ? 'ended'
-      : status;
+  const viewingCurrentAuction =
+    activeAuction && auction && activeAuction.nounId === auction.nounId && isCurrentView;
+
+  const derivedStatus = (() => {
+    if (!activeAuction) return status;
+    if (activeAuction.settled) return 'ended';
+    // When viewing the current on-chain auction, trust the hook's status
+    if (viewingCurrentAuction) return status;
+    // For past auctions, fall back to countdown
+    if (displayCountdown <= 0) return 'ended';
+    return status;
+  })();
   const isAuctionActive = derivedStatus === 'active';
   const canBid =
     isConnected &&
